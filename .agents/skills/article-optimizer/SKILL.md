@@ -46,7 +46,7 @@ Progress:
 ```bash
 # 搜索顺序（优先级从高到低）
 data/obsidian/00-Inbox/
-data/obsidian/30-Inbox/
+data/obsidian/30-Blog/
 data/obsidian/           # 递归搜索整个目录
 ```
 
