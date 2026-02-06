@@ -442,3 +442,7 @@ id_ed25519.pub
 *.ori
 *.orig
 *.rej
+
+posts
+
+.claude
