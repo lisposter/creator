@@ -364,24 +364,12 @@ $RECYCLE.BIN/
 .data/
 data/obsidian/
 
-# Skill-related generated content
-x-to-markdown/
-xhs-images/
-url-to-markdown/
-cover-image/
-slide-deck/
-infographic/
-illustrations/
-comic/
 tests-data/
 
 # Generated output directories
 output/
 generated/
 cache/
-
-# Skill user customization
-.baoyu-skills/
 
 # Temporary files
 tmp/
