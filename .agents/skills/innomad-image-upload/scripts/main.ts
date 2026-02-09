@@ -144,7 +144,7 @@ Uploads local images in markdown files to image hosting and replaces paths.
 If <input> is an image file, uploads it and prints the URL.
 
 Options:
-  -u, --uploader <type>  Backend: picgo, piclist, custom (default: picgo)
+  -u, --uploader <type>  Backend: piclist, picgo, custom (default: piclist)
   -a, --api <url>        API endpoint (default: http://127.0.0.1:36677/upload)
   -d, --dry-run          Preview mode (list images, no upload)
       --json             JSON output
@@ -154,7 +154,7 @@ Options:
 function parseArgs(args: string[]): Options | null {
   const opts: Options = {
     input: "",
-    uploader: "picgo",
+    uploader: "piclist",
     api: "http://127.0.0.1:36677/upload",
     dryRun: false,
     json: false,

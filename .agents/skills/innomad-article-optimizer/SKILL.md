@@ -1,26 +1,29 @@
 ---
-name: article-optimizer
-description: 优化 Obsidian 文章并为社交媒体传播做准备。从 data/obsidian 的 00-Inbox 或 30-Blog 查找文章，优化内容使其更适合 X 平台传播，保留原有文风，调整开头和结尾，添加 DYOR 免责声明，然后调用 baoyu-article-illustrator 配图和 baoyu-cover-image 生成封面。
+name: innomad-article-optimizer
+description: 优化 Obsidian 文章并为社交媒体传播做准备。从 data/obsidian 的 00-Inbox 或 30-Blog 查找文章，优化内容使其更适合 X 平台传播，保留原有文风，调整开头和结尾，添加 DYOR 免责声明，然后调用 baoyu-article-illustrator 配图、baoyu-cover-image 生成封面，最后调用 innomad-image-upload 上传所有本地图片并替换为远程 URL。
 ---
 
 # 文章优化器 (Article Optimizer)
 
-从 Obsidian 笔记中查找文章，优化内容使其更适合社交媒体传播，并自动生成配图和封面。
+从 Obsidian 笔记中查找文章，优化内容使其更适合社交媒体传播，自动生成配图和封面，并上传所有本地图片到图床。
 
 ## 使用方法
 
 ```bash
 # 基本用法：提供文章名字
-/article-optimizer 我的文章标题
+/innomad-article-optimizer 我的文章标题
 
 # 指定输出目录
-/article-optimizer 我的文章标题 --output ./posts/
+/innomad-article-optimizer 我的文章标题 --output ./posts/
 
 # 跳过配图，只优化文章
-/article-optimizer 我的文章标题 --no-illustrations
+/innomad-article-optimizer 我的文章标题 --no-illustrations
 
 # 跳过封面
-/article-optimizer 我的文章标题 --no-cover
+/innomad-article-optimizer 我的文章标题 --no-cover
+
+# 跳过图片上传
+/innomad-article-optimizer 我的文章标题 --no-upload
 ```
 
 ## 工作流程
@@ -32,7 +35,8 @@ Progress:
 - [ ] Step 3: 用户确认优化结果
 - [ ] Step 4: 生成文章配图 & 原图水印（可选）
 - [ ] Step 5: 优化标题 → 用户选择 → 生成封面 (baoyu-cover-image)
-- [ ] Step 6: 完成报告
+- [ ] Step 6: 上传图片到图床 (innomad-image-upload)
+- [ ] Step 7: 完成报告
 ```
 
 ---
@@ -413,9 +417,73 @@ magick cover.png -gravity center -background "$BG_COLOR" -extent ${NEW_W}x${NEW_
 
 ---
 
-## Step 6: 完成报告
+## Step 6: 上传图片到图床
 
-### 6.1 输出结构
+所有图片处理（配图生成、封面生成与 padding、原图水印）全部完成后，调用 `innomad-image-upload` 将文章中的所有本地图片上传到图床，并替换 markdown 中的引用路径为远程 URL。
+
+### 6.1 加载 skill
+
+```bash
+# 检查 skill 是否存在
+test -f .agents/skills/innomad-image-upload/SKILL.md && echo "found"
+```
+
+### 6.2 上传范围
+
+上传 `posts/{slug}/article.md` 中引用的**所有本地图片**，包括：
+
+| 图片类型 | 来源 | 示例路径 |
+|----------|------|----------|
+| AI 生成配图 | baoyu-article-illustrator | `imgs/01-xxx.png` |
+| 封面图 | baoyu-cover-image（含 padding） | `cover.png` |
+| 原文配图（已处理） | 水印/缩放后的截图、照片 | `imgs/screenshot-xxx.png` |
+
+**不上传**：已经是远程 URL 的图片（`http://` / `https://` 开头）。
+
+### 6.3 调用 innomad-image-upload
+
+读取 `.agents/skills/innomad-image-upload/SKILL.md` 并按其工作流执行：
+
+```bash
+# 上传文章中所有本地图片并替换路径
+npx -y bun ${SKILL_DIR}/scripts/main.ts posts/{slug}/article.md --uploader piclist
+```
+
+其中 `${SKILL_DIR}` 替换为 `innomad-image-upload` skill 的实际目录路径。
+
+**执行效果**：
+- 脚本会解析 markdown，找到所有本地图片引用
+- 逐一上传到图床（默认 PicList）
+- 自动将 markdown 中的本地路径替换为返回的远程 URL
+
+### 6.4 封面图单独上传
+
+封面图 `cover.png` 通常不在 `article.md` 的正文中引用，需要**单独上传**获取远程 URL：
+
+```bash
+npx -y bun ${SKILL_DIR}/scripts/main.ts posts/{slug}/cover.png --uploader piclist --json
+```
+
+将返回的远程 URL 记录下来，用于完成报告中展示。
+
+### 6.5 上传失败处理
+
+如果上传失败（如 PicGo 未启动、网络问题等）：
+1. 提示用户检查 PicGo/PicList 是否已启动
+2. 使用 AskUserQuestion 询问：
+   - 重试上传
+   - 跳过上传，保留本地路径
+   - 手动处理
+
+### 6.6 跳过条件
+
+如果用户指定 `--no-upload`，跳过图片上传步骤。
+
+---
+
+## Step 7: 完成报告
+
+### 7.1 输出结构
 
 ```
 posts/{slug}/
@@ -428,15 +496,16 @@ posts/{slug}/
     └── ...
 ```
 
-### 6.2 报告格式
+### 7.2 报告格式
 
 ```
 ✅ 文章优化完成
 
 📁 输出目录: posts/{slug}/
 📄 优化文章: posts/{slug}/article.md
-🖼️ 封面: posts/{slug}/cover.png
+🖼️ 封面: {封面远程 URL}
 🎨 配图: {N} 张（已插入文章）
+☁️ 图片上传: {已上传数}/{总数} 张已替换为远程 URL
 
 ---
 
@@ -450,6 +519,11 @@ posts/{slug}/
 **图片处理**
 - 保留原文图片：{N} 张
 - 新生成配图：{N} 张（已插入文章相应位置）
+
+**图片上传**
+- 上传工具：{PicGo/PicList/Custom}
+- 文章内图片：{N} 张已替换为远程 URL
+- 封面图：{远程 URL}
 
 **表格转换** （如有）
 - 第 X 段：{表格内容} → 转为列表/分段形式
@@ -477,8 +551,8 @@ posts/{slug}/
 
 ```bash
 # 检查配置文件
-test -f .baoyu-skills/article-optimizer/EXTEND.md && echo "project"
-test -f "$HOME/.baoyu-skills/article-optimizer/EXTEND.md" && echo "user"
+test -f .innomad-skills/innomad-article-optimizer/EXTEND.md && echo "project"
+test -f "$HOME/.innomad-skills/innomad-article-optimizer/EXTEND.md" && echo "user"
 ```
 
 ### 可配置项
@@ -503,6 +577,9 @@ autoIllustrate: true
 # 是否自动生成封面
 autoCover: true
 
+# 是否自动上传图片到图床
+autoUpload: true
+
 # 水印文本（仅用于原文配图，AI 生成的图片不加水印）
 # watermarkText: "Innomad一挪迈（X: @innomad_io）"
 ```
@@ -514,7 +591,7 @@ autoCover: true
 ### 示例 1: 基本用法
 
 ```
-用户: /article-optimizer AI投资新手指南
+用户: /innomad-article-optimizer AI投资新手指南
 
 Agent:
 1. 在 data/obsidian/00-Inbox/ 找到 "AI投资新手指南.md"
@@ -523,13 +600,14 @@ Agent:
 4. 展示对比，等待用户确认
 5. 调用 baoyu-article-illustrator 生成 4 张配图
 6. 调用 baoyu-cover-image 生成封面
-7. 输出完成报告
+7. 调用 innomad-image-upload 上传所有本地图片，替换为远程 URL
+8. 输出完成报告
 ```
 
 ### 示例 2: 只优化不配图
 
 ```
-用户: /article-optimizer AI投资新手指南 --no-illustrations --no-cover
+用户: /innomad-article-optimizer AI投资新手指南 --no-illustrations --no-cover
 
 Agent:
 1. 查找文章
@@ -546,6 +624,7 @@ Agent:
 |-------|------|------|
 | baoyu-article-illustrator | 生成文章配图 | 可选 |
 | baoyu-cover-image | 生成封面 | 可选 |
+| innomad-image-upload | 上传本地图片到图床 | 可选 |
 
 ---
 
@@ -554,7 +633,7 @@ Agent:
 以下短语会触发此 skill：
 
 - "优化文章"
-- "article-optimizer"
+- "innomad-article-optimizer"
 - "准备发布"
 - "优化 XX 这篇文章"
 - "帮我优化 Obsidian 里的文章"

@@ -35,7 +35,7 @@ test -f "$HOME/.innomad-skills/innomad-image-upload/EXTEND.md" && echo "user"
 | Result | Action |
 |--------|--------|
 | Found | Read, parse, apply settings |
-| Not found | Use defaults (PicGo on `http://127.0.0.1:36677/upload`) |
+| Not found | Use defaults (PicList on `http://127.0.0.1:36677/upload`) |
 
 **EXTEND.md Supports**: Uploader backend | API endpoint | Custom headers | Response field mapping
 
@@ -43,8 +43,8 @@ test -f "$HOME/.innomad-skills/innomad-image-upload/EXTEND.md" && echo "user"
 
 | Backend | Description |
 |---------|-------------|
-| PicGo | Local PicGo App HTTP API (default `http://127.0.0.1:36677/upload`) |
-| PicList | PicGo enhanced version, same API, supports URL param for target bed |
+| PicList | PicGo enhanced version, same API, supports URL param for target bed (default `http://127.0.0.1:36677/upload`) |
+| PicGo | Local PicGo App HTTP API |
 | Custom API | Custom HTTP API (POST multipart/form-data) |
 
 ## Usage
@@ -58,7 +58,7 @@ npx -y bun ${SKILL_DIR}/scripts/main.ts <input> [options]
 | Option | Short | Description | Default |
 |--------|-------|-------------|---------|
 | `<input>` | | Markdown file or image file | Required |
-| `--uploader` | `-u` | Backend: picgo, piclist, custom | picgo |
+| `--uploader` | `-u` | Backend: piclist, picgo, custom | piclist |
 | `--api` | `-a` | API endpoint URL | `http://127.0.0.1:36677/upload` |
 | `--dry-run` | `-d` | Preview mode (list images, no upload) | false |
 | `--json` | | JSON output | false |
@@ -70,7 +70,7 @@ npx -y bun ${SKILL_DIR}/scripts/main.ts <input> [options]
 npx -y bun ${SKILL_DIR}/scripts/main.ts article.md
 
 # Specify backend
-npx -y bun ${SKILL_DIR}/scripts/main.ts article.md --uploader picgo
+npx -y bun ${SKILL_DIR}/scripts/main.ts article.md --uploader piclist
 
 # Preview mode (list images without uploading)
 npx -y bun ${SKILL_DIR}/scripts/main.ts article.md --dry-run
