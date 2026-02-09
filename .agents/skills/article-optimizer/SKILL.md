@@ -1,6 +1,6 @@
 ---
 name: article-optimizer
-description: 优化 Obsidian 文章并为社交媒体传播做准备。从 data/obsidian 的 00-Inbox 或 30-Inbox 查找文章，优化内容使其更适合 X 平台传播，保留原有文风，调整开头和结尾，添加 DYOR 免责声明，然后调用 baoyu-article-illustrator 配图和 baoyu-cover-image 生成封面。
+description: 优化 Obsidian 文章并为社交媒体传播做准备。从 data/obsidian 的 00-Inbox 或 30-Blog 查找文章，优化内容使其更适合 X 平台传播，保留原有文风，调整开头和结尾，添加 DYOR 免责声明，然后调用 baoyu-article-illustrator 配图和 baoyu-cover-image 生成封面。
 ---
 
 # 文章优化器 (Article Optimizer)
@@ -62,7 +62,7 @@ data/obsidian/           # 递归搜索整个目录
 
 ```bash
 # 精确匹配
-find data/obsidian/00-Inbox data/obsidian/30-Inbox -name "*${ARTICLE_NAME}*.md" 2>/dev/null | head -10
+find data/obsidian/00-Inbox data/obsidian/30-Blog -name "*${ARTICLE_NAME}*.md" 2>/dev/null | head -10
 
 # 如果没找到，扩展搜索
 find data/obsidian -name "*${ARTICLE_NAME}*.md" 2>/dev/null | head -10
@@ -71,7 +71,7 @@ find data/obsidian -name "*${ARTICLE_NAME}*.md" 2>/dev/null | head -10
 ### 1.4 未找到处理
 
 如果未找到文章：
-1. 列出 `00-Inbox` 和 `30-Inbox` 中的所有 `.md` 文件
+1. 列出 `00-Inbox` 和 `30-Blog` 中的所有 `.md` 文件
 2. 使用 AskUserQuestion 让用户选择或重新输入
 
 ### 1.5 前置确认：水印选项 ⚠️ REQUIRED
