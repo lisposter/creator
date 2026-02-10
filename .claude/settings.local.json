@@ -6,7 +6,7 @@
       "Bash(mkdir:*)",
       "Bash(cp:*)",
       "Bash(mv:*)",
-      "Bash(rm:*posts/*)",
+      "Bash(rm *posts/*)",
       "Bash(find:*)",
       "Bash(for:*)",
       "Bash(magick:*)",
