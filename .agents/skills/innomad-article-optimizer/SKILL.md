@@ -95,6 +95,27 @@ find data/obsidian -name "*${ARTICLE_NAME}*.md" 2>/dev/null | head -10
 - 如果用户选择添加，在 Step 4 配图完成后统一处理
 - 水印文本从 EXTEND.md 的 `watermarkText` 配置读取，未配置则使用默认值
 
+### 1.6 依赖检查 ⚠️ REQUIRED
+
+在开始优化前，一次性检查所有依赖 skill 的 EXTEND.md 是否存在，缺失的在此阶段统一完成首次设置，**避免后续步骤中途中断**：
+
+```bash
+test -f .baoyu-skills/baoyu-article-illustrator/EXTEND.md && echo "illustrator ok"
+test -f .baoyu-skills/baoyu-cover-image/EXTEND.md && echo "cover ok"
+```
+
+如有缺失，立即完成对应 skill 的首次设置（读取其 `references/config/first-time-setup.md`），全部就绪后再进入 Step 2。
+
+### 1.7 输出目录冲突检测
+
+```bash
+test -d posts/{slug} && echo "exists"
+```
+
+如果目录已存在且包含 `article.md`：
+1. 备份为 `article-prev-YYYYMMDD-HHMMSS.md`
+2. 提醒用户该目录已有旧版本
+
 ---
 
 ## Step 2: 优化内容
@@ -261,16 +282,9 @@ X 平台不支持 Markdown 表格，必须将所有表格转换为其他格式�
 
 ## Step 4: 生成文章配图
 
-### 4.1 加载 skill
+### 4.1 调用 baoyu-article-illustrator
 
-```bash
-# 检查 skill 是否存在
-test -f .omo/skills/baoyu-article-illustrator/SKILL.md && echo "found"
-```
-
-### 4.2 调用 baoyu-article-illustrator
-
-读取 `.omo/skills/baoyu-article-illustrator/SKILL.md` 并按其工作流执行：
+读取 `.agents/skills/baoyu-article-illustrator/SKILL.md` 并按其工作流执行（仅在 Step 1.6 依赖检查时未读过的情况下才读取完整 SKILL.md）：
 
 **推荐参数**：
 - Type: 根据文章内容自动选择（infographic/scene/flowchart）
@@ -311,14 +325,20 @@ test -f .omo/skills/baoyu-article-illustrator/SKILL.md && echo "found"
 
 **处理方式**：使用 Python Pillow 添加斜向平铺文字水印
 
+水印脚本位于 `scripts/add_watermark.py`（项目根目录）。如不存在则从下方参数创建。
+
 ```python
 # 水印参数
 text = watermarkText  # 从 EXTEND.md 读取，或默认值
 font_size = max(24, image_width // 30)
-fill = (80, 80, 80, 72)  # ~28% 透明度深灰色
-pad_x = text_width * 0.4  # 水平间距
-pad_y = text_height * 2.5  # 垂直间距
+fill = (120, 120, 120, 38)  # ~15% 透明度浅灰色
+pad_x = text_width * 1.2  # 水平间距
+pad_y = text_height * 5.0  # 垂直间距
 angle = 30  # 正 30 度角
+
+# 画布必须 3x 原图尺寸，平铺从负偏移开始，防止旋转后边缘文字被裁切
+canvas_size = (w * 3, h * 3)
+tile_start = (-step_x, -step_y)
 
 # CJK 字体路径优先级（macOS）
 fonts = [
@@ -333,6 +353,11 @@ fonts = [
 2. 用 ImageMagick 缩放到 2/3 宽度 + 白色背景居中 + box-shadow 阴影效果
 3. 用 Python Pillow 添加斜向平铺水印
 4. 更新文章中的图片引用为本地处理后的路径
+
+**批量替换图片路径**：
+- 处理完所有图片后，使用 Edit 工具的 `replace_all=true` 一次性替换所有相同前缀的路径
+- 或使用 Bash `sed -i '' 's|old-prefix|new-prefix|g' article.md` 批量替换
+- **禁止逐个文件逐个路径调用 Edit**——这会浪费大量 token。如果有 6 张图片需要从 `v1` 改为 `v2`，应用一条 sed 命令或按前缀分组使用 `replace_all`
 
 ### 4.5 跳过条件
 
@@ -368,16 +393,9 @@ fonts = [
 1. 更新文章的一级标题为用户选择的标题
 2. 使用该标题生成封面图
 
-### 5.2 加载 skill
+### 5.2 调用 baoyu-cover-image
 
-```bash
-# 检查 skill 是否存在
-test -f .omo/skills/baoyu-cover-image/SKILL.md && echo "found"
-```
-
-### 5.3 调用 baoyu-cover-image
-
-读取 `.omo/skills/baoyu-cover-image/SKILL.md` 并按其工作流执行：
+读取 `.agents/skills/baoyu-cover-image/SKILL.md` 并按其工作流执行（仅在 Step 1.6 依赖检查时未读过的情况下才读取完整 SKILL.md）：
 
 **推荐参数**：
 - Type: conceptual（概念型，适合大多数文章）
@@ -456,17 +474,28 @@ npx -y bun ${SKILL_DIR}/scripts/main.ts posts/{slug}/article.md --uploader picli
 - 逐一上传到图床（默认 PicList）
 - 自动将 markdown 中的本地路径替换为返回的远程 URL
 
-### 6.4 封面图单独上传
+### 6.4 CDN 文件名去重 ⚠️ REQUIRED
+
+GitHub 图床**不会覆盖同名文件**——PicList 检测到重复文件名时会直接返回已有文件的 URL，而不是上传新文件。因此：
+
+1. **上传前检查**：如果文章是重新优化的旧文章（如已发布过的文章重新配图），图片文件名可能已存在于 CDN
+2. **重命名策略**：给处理后的图片添加版本后缀再上传
+   - 原名：`cover.png` → 改为 `{slug}_cover.png`（如 `ibkr-market-data_cover.png`）
+   - 重新处理的截图：`screenshot-1.png` → `screenshot-v2-1.png`
+3. **封面图**始终使用 `{slug}_cover.png` 或 `{slug}-v{N}_cover.png` 命名，避免通用名 `cover.png` 冲突
+
+### 6.5 封面图单独上传
 
 封面图 `cover.png` 通常不在 `article.md` 的正文中引用，需要**单独上传**获取远程 URL：
 
 ```bash
-npx -y bun ${SKILL_DIR}/scripts/main.ts posts/{slug}/cover.png --uploader piclist --json
+# 注意：封面图命名必须包含 slug，避免通用名冲突（见 6.4）
+npx -y bun ${SKILL_DIR}/scripts/main.ts posts/{slug}/{slug}_cover.png --uploader piclist --json
 ```
 
-将返回的远程 URL 记录下来，用于完成报告中展示。
+将返回的远程 URL 记录下来，更新到 `article.md` 的 frontmatter `cover` 和 `cover_image` 字段。
 
-### 6.5 上传失败处理
+### 6.6 上传失败处理
 
 如果上传失败（如 PicGo 未启动、网络问题等）：
 1. 提示用户检查 PicGo/PicList 是否已启动
@@ -475,7 +504,7 @@ npx -y bun ${SKILL_DIR}/scripts/main.ts posts/{slug}/cover.png --uploader piclis
    - 跳过上传，保留本地路径
    - 手动处理
 
-### 6.6 跳过条件
+### 6.7 跳过条件
 
 如果用户指定 `--no-upload`，跳过图片上传步骤。
 
@@ -625,6 +654,39 @@ Agent:
 | baoyu-article-illustrator | 生成文章配图 | 可选 |
 | baoyu-cover-image | 生成封面 | 可选 |
 | innomad-image-upload | 上传本地图片到图床 | 可选 |
+
+### 子 Skill 快速调用参考
+
+以下为常用子 skill 的直接调用命令，**无需每次重新读取子 skill 的完整 SKILL.md**。仅在首次设置（EXTEND.md 缺失）或遇到未知错误时才读取子 skill 的 SKILL.md。
+
+**baoyu-image-gen**（配图 / 封面图片生成）：
+```bash
+SKILL_DIR=".agents/skills/baoyu-image-gen"
+npx -y bun ${SKILL_DIR}/scripts/main.ts --promptfiles <prompt.md> --image <out.png> --ar 16:9 --quality 2k
+# 可选参数：--provider google|openai|dashscope --ref <reference.png>
+```
+
+**baoyu-article-illustrator**（配图工作流）：
+- 读取 `.agents/skills/baoyu-article-illustrator/SKILL.md` 获取分析和大纲流程
+- EXTEND.md 路径：`.baoyu-skills/baoyu-article-illustrator/EXTEND.md`
+- 图片生成最终调用上面的 baoyu-image-gen 命令
+
+**baoyu-cover-image**（封面工作流）：
+- 读取 `.agents/skills/baoyu-cover-image/SKILL.md` 获取 5 维度配置流程
+- EXTEND.md 路径：`.baoyu-skills/baoyu-cover-image/EXTEND.md`
+- 图片生成最终调用上面的 baoyu-image-gen 命令
+- 封面生成后必须添加 padding（见 Step 5.4）
+
+**innomad-image-upload**（图片上传）：
+```bash
+SKILL_DIR=".agents/skills/innomad-image-upload"
+# 上传 markdown 中所有本地图片并替换路径
+npx -y bun ${SKILL_DIR}/scripts/main.ts <article.md> --uploader piclist
+# 上传单个图片并获取 URL
+npx -y bun ${SKILL_DIR}/scripts/main.ts <image.png> --uploader piclist --json
+# 预览模式（不上传）
+npx -y bun ${SKILL_DIR}/scripts/main.ts <article.md> --dry-run
+```
 
 ---
 
