@@ -1,6 +1,6 @@
 ---
 name: baoyu-post-to-wechat
-description: Posts content to WeChat Official Account (微信公众号) via API or Chrome CDP. Supports article posting (文章) with HTML, markdown, or plain text input, and image-text posting (图文) with multiple images. Use when user mentions "发布公众号", "post to wechat", "微信公众号", or "图文/文章".
+description: Posts content to WeChat Official Account (微信公众号) via API or Chrome CDP. Supports article posting (文章) with HTML, markdown, or plain text input, and image-text posting (贴图, formerly 图文) with multiple images. Use when user mentions "发布公众号", "post to wechat", "微信公众号", or "贴图/图文/文章".
 ---
 
 # Post to WeChat Official Account
@@ -44,10 +44,37 @@ test -f "$HOME/.baoyu-skills/baoyu-post-to-wechat/EXTEND.md" && echo "user"
 ├───────────┼───────────────────────────────────────────────────────────────────────────┤
 │ Found     │ Read, parse, apply settings                                               │
 ├───────────┼───────────────────────────────────────────────────────────────────────────┤
-│ Not found │ Use defaults                                                              │
+│ Not found │ Run first-time setup ([references/config/first-time-setup.md](references/config/first-time-setup.md)) → Save → Continue │
 └───────────┴───────────────────────────────────────────────────────────────────────────┘
 
-**EXTEND.md Supports**: Default theme | Default publishing method (api/browser) | Default author | Chrome profile path
+**EXTEND.md Supports**: Default theme | Default publishing method (api/browser) | Default author | Default open-comment switch | Default fans-only-comment switch | Chrome profile path
+
+First-time setup: [references/config/first-time-setup.md](references/config/first-time-setup.md)
+
+**Minimum supported keys** (case-insensitive, accept `1/0` or `true/false`):
+
+| Key | Default | Mapping |
+|-----|---------|---------|
+| `default_author` | empty | Fallback for `author` when CLI/frontmatter not provided |
+| `need_open_comment` | `1` | `articles[].need_open_comment` in `draft/add` request |
+| `only_fans_can_comment` | `0` | `articles[].only_fans_can_comment` in `draft/add` request |
+
+**Recommended EXTEND.md example**:
+
+```md
+default_theme: default
+default_publish_method: api
+default_author: 宝玉
+need_open_comment: 1
+only_fans_can_comment: 0
+chrome_profile_path: /path/to/chrome/profile
+```
+
+**Value priority**:
+1. CLI arguments
+2. Frontmatter
+3. EXTEND.md
+4. Skill defaults
 
 ## Image-Text Posting (图文)
 
@@ -70,7 +97,7 @@ Publishing Progress:
 - [ ] Step 1: Determine input type
 - [ ] Step 2: Check markdown-to-html skill
 - [ ] Step 3: Convert to HTML
-- [ ] Step 4: Validate metadata (title, summary)
+- [ ] Step 4: Validate metadata (title, summary, cover)
 - [ ] Step 5: Select method and configure credentials
 - [ ] Step 6: Publish to WeChat
 - [ ] Step 7: Report completion
@@ -79,6 +106,13 @@ Publishing Progress:
 ### Step 0: Load Preferences
 
 Check and load EXTEND.md settings (see Preferences section above).
+
+**CRITICAL**: If not found, complete first-time setup BEFORE any other steps or questions.
+
+Resolve and store these defaults for later steps:
+- `default_author`
+- `need_open_comment` (default `1`)
+- `only_fans_can_comment` (default `0`)
 
 ### Step 1: Determine Input Type
 
@@ -162,10 +196,18 @@ Check extracted metadata from Step 3 (or HTML meta tags if direct HTML input).
 |-------|------------|
 | Title | Prompt: "Enter title, or press Enter to auto-generate from content" |
 | Summary | Prompt: "Enter summary, or press Enter to auto-generate (recommended for SEO)" |
+| Author | Use fallback chain: CLI `--author` → frontmatter `author` → EXTEND.md `default_author` |
 
 **Auto-Generation Logic**:
 - **Title**: First H1/H2 heading, or first sentence
 - **Summary**: First paragraph, truncated to 120 characters
+
+**Cover Image Check** (required for `article_type=news`):
+1. Use CLI `--cover` if provided.
+2. Else use frontmatter (`featureImage`, `coverImage`, `cover`, `image`).
+3. Else check article directory default path: `imgs/cover.png`.
+4. Else fallback to first inline content image.
+5. If still missing, stop and request a cover image before publishing.
 
 ### Step 5: Select Publishing Method and Configure
 
@@ -213,8 +255,19 @@ WECHAT_APP_SECRET=<user_input>
 **API method**:
 
 ```bash
-npx -y bun ${SKILL_DIR}/scripts/wechat-api.ts <html_file> [--title <title>] [--summary <summary>]
+npx -y bun ${SKILL_DIR}/scripts/wechat-api.ts <html_file> [--title <title>] [--summary <summary>] [--author <author>] [--cover <cover_path>]
 ```
+
+**`draft/add` payload rules**:
+- Use endpoint: `POST https://api.weixin.qq.com/cgi-bin/draft/add?access_token=ACCESS_TOKEN`
+- `article_type`: `news` (default) or `newspic`
+- For `news`, include `thumb_media_id` (cover is required)
+- Always resolve and send:
+  - `need_open_comment` (default `1`)
+  - `only_fans_can_comment` (default `0`)
+- `author` resolution: CLI `--author` → frontmatter `author` → EXTEND.md `default_author`
+
+If script parameters do not expose the two comment fields, still ensure final API request body includes resolved values.
 
 **Browser method**:
 
@@ -237,6 +290,7 @@ Article:
 • Title: [title]
 • Summary: [summary]
 • Images: [N] inline images
+• Comments: [open/closed], [fans-only/all users]
 
 Result:
 ✓ Draft saved to WeChat Official Account
@@ -289,6 +343,8 @@ Files created:
 | Multiple images | ✓ (up to 9) | ✓ (inline) | ✓ (inline) |
 | Themes | ✗ | ✓ | ✓ |
 | Auto-generate metadata | ✗ | ✓ | ✓ |
+| Default cover fallback (`imgs/cover.png`) | ✗ | ✓ | ✗ |
+| Comment control (`need_open_comment`, `only_fans_can_comment`) | ✗ | ✓ | ✗ |
 | Requires Chrome | ✓ | ✗ | ✓ |
 | Requires API credentials | ✗ | ✓ | ✗ |
 | Speed | Medium | Fast | Slow |
@@ -322,6 +378,8 @@ Files created:
 | Not logged in (browser) | First run opens browser - scan QR to log in |
 | Chrome not found | Set `WECHAT_BROWSER_CHROME_PATH` env var |
 | Title/summary missing | Use auto-generation or provide manually |
+| No cover image | Add frontmatter cover or place `imgs/cover.png` in article directory |
+| Wrong comment defaults | Check `EXTEND.md` keys `need_open_comment` and `only_fans_can_comment` |
 | Paste fails | Check system clipboard permissions |
 
 ## Extension Support

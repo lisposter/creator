@@ -58,3 +58,14 @@ Default: `title-only`
 | Launch, announcement, promotion, event, gaming, entertainment | `bold` |
 
 Default: `balanced`
+
+## Auto Font Selection
+
+| Signals | Font |
+|---------|------|
+| Personal, lifestyle, human, warm, friendly, story | `handwritten` |
+| Technical, professional, clean, modern, minimal, data | `clean` |
+| Editorial, academic, luxury, classic, literary | `serif` |
+| Announcement, entertainment, promotion, bold, event, gaming | `display` |
+
+Default: `clean`

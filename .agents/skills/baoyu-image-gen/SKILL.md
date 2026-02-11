@@ -41,7 +41,9 @@ test -f "$HOME/.baoyu-skills/baoyu-image-gen/EXTEND.md" && echo "user"
 │ Not found │ Use defaults                                                              │
 └───────────┴───────────────────────────────────────────────────────────────────────────┘
 
-**EXTEND.md Supports**: Default provider | Default quality | Default aspect ratio
+**EXTEND.md Supports**: Default provider | Default quality | Default aspect ratio | Default image size | Default models
+
+Schema: `references/config/preferences-schema.md`
 
 ## Usage
 
@@ -58,8 +60,11 @@ npx -y bun ${SKILL_DIR}/scripts/main.ts --prompt "A cat" --image out.png --quali
 # From prompt files
 npx -y bun ${SKILL_DIR}/scripts/main.ts --promptfiles system.md content.md --image out.png
 
-# With reference images (Google multimodal only)
+# With reference images (Google multimodal or OpenAI edits)
 npx -y bun ${SKILL_DIR}/scripts/main.ts --prompt "Make blue" --image out.png --ref source.png
+
+# With reference images (explicit provider/model)
+npx -y bun ${SKILL_DIR}/scripts/main.ts --prompt "Make blue" --image out.png --provider google --model gemini-3-pro-image-preview --ref source.png
 
 # Specific provider
 npx -y bun ${SKILL_DIR}/scripts/main.ts --prompt "A cat" --image out.png --provider openai
@@ -76,12 +81,12 @@ npx -y bun ${SKILL_DIR}/scripts/main.ts --prompt "一只可爱的猫" --image ou
 | `--promptfiles <files...>` | Read prompt from files (concatenated) |
 | `--image <path>` | Output image path (required) |
 | `--provider google\|openai\|dashscope` | Force provider (default: google) |
-| `--model <id>`, `-m` | Model ID |
+| `--model <id>`, `-m` | Model ID (`--ref` with OpenAI requires GPT Image model, e.g. `gpt-image-1.5`) |
 | `--ar <ratio>` | Aspect ratio (e.g., `16:9`, `1:1`, `4:3`) |
 | `--size <WxH>` | Size (e.g., `1024x1024`) |
 | `--quality normal\|2k` | Quality preset (default: 2k) |
 | `--imageSize 1K\|2K\|4K` | Image size for Google (default: from quality) |
-| `--ref <files...>` | Reference images (Google multimodal only) |
+| `--ref <files...>` | Reference images. Supported by Google multimodal and OpenAI edits (GPT Image models). If provider omitted: Google first, then OpenAI |
 | `--n <count>` | Number of images |
 | `--json` | JSON output |
 
@@ -99,13 +104,14 @@ npx -y bun ${SKILL_DIR}/scripts/main.ts --prompt "一只可爱的猫" --image ou
 | `GOOGLE_BASE_URL` | Custom Google endpoint |
 | `DASHSCOPE_BASE_URL` | Custom DashScope endpoint |
 
-**Load Priority**: CLI args > env vars > `<cwd>/.baoyu-skills/.env` > `~/.baoyu-skills/.env`
+**Load Priority**: CLI args > EXTEND.md > env vars > `<cwd>/.baoyu-skills/.env` > `~/.baoyu-skills/.env`
 
 ## Provider Selection
 
-1. `--provider` specified → use it
-2. Only one API key available → use that provider
-3. Multiple available → default to Google
+1. `--ref` provided + no `--provider` → auto-select Google first, then OpenAI
+2. `--provider` specified → use it (if `--ref`, must be `google` or `openai`)
+3. Only one API key available → use that provider
+4. Multiple available → default to Google
 
 ## Quality Presets
 
@@ -155,7 +161,7 @@ Supported: `1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `2.35:1`
 - Missing API key → error with setup instructions
 - Generation failure → auto-retry once
 - Invalid aspect ratio → warning, proceed with default
-- Reference images with non-multimodal model → warning, ignore refs
+- Reference images with unsupported provider/model → error with fix hint (switch to Google multimodal or OpenAI GPT Image edits)
 
 ## Extension Support
 

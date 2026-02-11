@@ -7,17 +7,15 @@ watermark:
   position: bottom-right
   opacity: 0.7
 
-# Preferred style: null (auto) | notion | warm | minimal-flat | sci-fi | hand-drawn | editorial | scene
 preferred_style:
-  name: null
-  description: ""
+  name: innomad-finance
+  description: "Innomad brand style — auto-switches to innomad-tech or innomad-life by content signals"
 
-# Language: zh | en | null (auto-detect)
-language: null
+language: zh
 
-# Custom styles (uncomment and edit to add)
-# custom_styles: []
-
-# Output directory (uncomment to set)
-# output_dir: imgs/
+default_output_dir: imgs-subdir
 ---
+
+<!-- IMPORTANT: Read references/styles-innomad.md for Innomad brand style
+     compatibility matrix, content signal routing, and type×style descriptions.
+     This file supplements styles.md with brand-specific customizations. -->

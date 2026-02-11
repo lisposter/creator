@@ -216,13 +216,17 @@ export async function generateImage(
 ): Promise<Uint8Array> {
   if (isGoogleImagen(model)) {
     if (args.referenceImages.length > 0) {
-      console.error("Warning: Reference images not supported with Imagen models, ignoring.");
+      throw new Error(
+        "Reference images are not supported with Imagen models. Use gemini-3-pro-image-preview or gemini-3-flash-preview."
+      );
     }
     return generateWithImagen(prompt, model, args);
   }
 
   if (!isGoogleMultimodal(model) && args.referenceImages.length > 0) {
-    console.error("Warning: Reference images are only supported with Gemini multimodal models.");
+    throw new Error(
+      "Reference images are only supported with Gemini multimodal models. Use gemini-3-pro-image-preview or gemini-3-flash-preview."
+    );
   }
 
   return generateWithGemini(prompt, model, args);

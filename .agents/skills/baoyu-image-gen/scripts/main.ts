@@ -1,8 +1,8 @@
 import path from "node:path";
 import process from "node:process";
 import { homedir } from "node:os";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import type { CliArgs, Provider } from "./types";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import type { CliArgs, Provider, ExtendConfig } from "./types";
 
 function printUsage(): void {
   console.log(`Usage:
@@ -20,7 +20,7 @@ Options:
   --size <WxH>              Size (e.g., 1024x1024)
   --quality normal|2k       Quality preset (default: 2k)
   --imageSize 1K|2K|4K      Image size for Google (default: from quality)
-  --ref <files...>          Reference images (Google multimodal only)
+  --ref <files...>          Reference images (Google multimodal or OpenAI edits)
   --n <count>               Number of images (default: 1)
   --json                    JSON output
   -h, --help                Show help
@@ -37,7 +37,7 @@ Environment variables:
   GOOGLE_BASE_URL           Custom Google endpoint
   DASHSCOPE_BASE_URL        Custom DashScope endpoint
 
-Env file load order: CLI args > process.env > <cwd>/.baoyu-skills/.env > ~/.baoyu-skills/.env`);
+Env file load order: CLI args > EXTEND.md > process.env > <cwd>/.baoyu-skills/.env > ~/.baoyu-skills/.env`);
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -49,7 +49,7 @@ function parseArgs(argv: string[]): CliArgs {
     model: null,
     aspectRatio: null,
     size: null,
-    quality: "2k",
+    quality: null,
     imageSize: null,
     referenceImages: [],
     n: 1,
@@ -215,6 +215,87 @@ async function loadEnv(): Promise<void> {
   }
 }
 
+function extractYamlFrontMatter(content: string): string | null {
+  const match = content.match(/^---\s*\n([\s\S]*?)\n---\s*$/m);
+  return match ? match[1] : null;
+}
+
+function parseSimpleYaml(yaml: string): Partial<ExtendConfig> {
+  const config: Partial<ExtendConfig> = {};
+  const lines = yaml.split("\n");
+  let currentKey: string | null = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    if (trimmed.includes(":") && !trimmed.startsWith("-")) {
+      const colonIdx = trimmed.indexOf(":");
+      const key = trimmed.slice(0, colonIdx).trim();
+      let value = trimmed.slice(colonIdx + 1).trim();
+
+      if (value === "null" || value === "") {
+        value = "null";
+      }
+
+      if (key === "version") {
+        config.version = value === "null" ? 1 : parseInt(value, 10);
+      } else if (key === "default_provider") {
+        config.default_provider = value === "null" ? null : (value as Provider);
+      } else if (key === "default_quality") {
+        config.default_quality = value === "null" ? null : (value as "normal" | "2k");
+      } else if (key === "default_aspect_ratio") {
+        const cleaned = value.replace(/['"]/g, "");
+        config.default_aspect_ratio = cleaned === "null" ? null : cleaned;
+      } else if (key === "default_image_size") {
+        config.default_image_size = value === "null" ? null : (value as "1K" | "2K" | "4K");
+      } else if (key === "default_model") {
+        config.default_model = { google: null, openai: null, dashscope: null };
+        currentKey = "default_model";
+      } else if (currentKey === "default_model" && (key === "google" || key === "openai" || key === "dashscope")) {
+        const cleaned = value.replace(/['"]/g, "");
+        config.default_model![key] = cleaned === "null" ? null : cleaned;
+      }
+    }
+  }
+
+  return config;
+}
+
+async function loadExtendConfig(): Promise<Partial<ExtendConfig>> {
+  const home = homedir();
+  const cwd = process.cwd();
+
+  const paths = [
+    path.join(cwd, ".baoyu-skills", "baoyu-image-gen", "EXTEND.md"),
+    path.join(home, ".baoyu-skills", "baoyu-image-gen", "EXTEND.md"),
+  ];
+
+  for (const p of paths) {
+    try {
+      const content = await readFile(p, "utf8");
+      const yaml = extractYamlFrontMatter(content);
+      if (!yaml) continue;
+
+      return parseSimpleYaml(yaml);
+    } catch {
+      continue;
+    }
+  }
+
+  return {};
+}
+
+function mergeConfig(args: CliArgs, extend: Partial<ExtendConfig>): CliArgs {
+  return {
+    ...args,
+    provider: args.provider ?? extend.default_provider ?? null,
+    quality: args.quality ?? extend.default_quality ?? null,
+    aspectRatio: args.aspectRatio ?? extend.default_aspect_ratio ?? null,
+    imageSize: args.imageSize ?? extend.default_image_size ?? null,
+  };
+}
+
 async function readPromptFromFiles(files: string[]): Promise<string> {
   const parts: string[] = [];
   for (const f of files) {
@@ -242,11 +323,25 @@ function normalizeOutputImagePath(p: string): string {
 }
 
 function detectProvider(args: CliArgs): Provider {
+  if (args.referenceImages.length > 0 && args.provider && args.provider !== "google" && args.provider !== "openai") {
+    throw new Error(
+      "Reference images require a ref-capable provider. Use --provider google (Gemini multimodal) or --provider openai (GPT Image edits)."
+    );
+  }
+
   if (args.provider) return args.provider;
 
   const hasGoogle = !!(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY);
   const hasOpenai = !!process.env.OPENAI_API_KEY;
   const hasDashscope = !!process.env.DASHSCOPE_API_KEY;
+
+  if (args.referenceImages.length > 0) {
+    if (hasGoogle) return "google";
+    if (hasOpenai) return "openai";
+    throw new Error(
+      "Reference images require Google or OpenAI. Set GOOGLE_API_KEY/GEMINI_API_KEY or OPENAI_API_KEY, or remove --ref."
+    );
+  }
 
   const available = [hasGoogle && "google", hasOpenai && "openai", hasDashscope && "dashscope"].filter(Boolean) as Provider[];
 
@@ -259,10 +354,33 @@ function detectProvider(args: CliArgs): Provider {
   );
 }
 
+async function validateReferenceImages(referenceImages: string[]): Promise<void> {
+  for (const refPath of referenceImages) {
+    const fullPath = path.resolve(refPath);
+    try {
+      await access(fullPath);
+    } catch {
+      throw new Error(`Reference image not found: ${fullPath}`);
+    }
+  }
+}
+
 type ProviderModule = {
   getDefaultModel: () => string;
   generateImage: (prompt: string, model: string, args: CliArgs) => Promise<Uint8Array>;
 };
+
+function isRetryableGenerationError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  const nonRetryableMarkers = [
+    "Reference image",
+    "not supported",
+    "only supported",
+    "No API key found",
+    "is required",
+  ];
+  return !nonRetryableMarkers.some((marker) => msg.includes(marker));
+}
 
 async function loadProviderModule(provider: Provider): Promise<ProviderModule> {
   if (provider === "google") {
@@ -283,9 +401,13 @@ async function main(): Promise<void> {
   }
 
   await loadEnv();
+  const extendConfig = await loadExtendConfig();
+  const mergedArgs = mergeConfig(args, extendConfig);
 
-  let prompt: string | null = args.prompt;
-  if (!prompt && args.promptFiles.length > 0) prompt = await readPromptFromFiles(args.promptFiles);
+  if (!mergedArgs.quality) mergedArgs.quality = "2k";
+
+  let prompt: string | null = mergedArgs.prompt;
+  if (!prompt && mergedArgs.promptFiles.length > 0) prompt = await readPromptFromFiles(mergedArgs.promptFiles);
   if (!prompt) prompt = await readPromptFromStdin();
 
   if (!prompt) {
@@ -295,27 +417,39 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (!args.imagePath) {
+  if (!mergedArgs.imagePath) {
     console.error("Error: --image is required");
     printUsage();
     process.exitCode = 1;
     return;
   }
 
-  const provider = detectProvider(args);
+  if (mergedArgs.referenceImages.length > 0) {
+    await validateReferenceImages(mergedArgs.referenceImages);
+  }
+
+  const provider = detectProvider(mergedArgs);
   const providerModule = await loadProviderModule(provider);
-  const model = args.model || providerModule.getDefaultModel();
-  const outputPath = normalizeOutputImagePath(args.imagePath);
+
+  let model = mergedArgs.model;
+  if (!model && extendConfig.default_model) {
+    if (provider === "google") model = extendConfig.default_model.google ?? null;
+    if (provider === "openai") model = extendConfig.default_model.openai ?? null;
+    if (provider === "dashscope") model = extendConfig.default_model.dashscope ?? null;
+  }
+  model = model || providerModule.getDefaultModel();
+
+  const outputPath = normalizeOutputImagePath(mergedArgs.imagePath);
 
   let imageData: Uint8Array;
   let retried = false;
 
   while (true) {
     try {
-      imageData = await providerModule.generateImage(prompt, model, args);
+      imageData = await providerModule.generateImage(prompt, model, mergedArgs);
       break;
     } catch (e) {
-      if (!retried) {
+      if (!retried && isRetryableGenerationError(e)) {
         retried = true;
         console.error("Generation failed, retrying...");
         continue;
@@ -328,7 +462,7 @@ async function main(): Promise<void> {
   await mkdir(dir, { recursive: true });
   await writeFile(outputPath, imageData);
 
-  if (args.json) {
+  if (mergedArgs.json) {
     console.log(
       JSON.stringify(
         {

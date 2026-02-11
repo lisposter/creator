@@ -48,3 +48,12 @@
 | metaphor | ✓✓ | ✓✓ | ✓ |
 | scene | ✓✓ | ✓✓ | ✓ |
 | minimal | ✓✓ | ✓✓ | ✗ |
+
+## Font × Rendering
+
+| | flat-vector | hand-drawn | painterly | digital | pixel | chalk |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| clean | ✓✓ | ✗ | ✗ | ✓✓ | ✓ | ✗ |
+| handwritten | ✓ | ✓✓ | ✓✓ | ✓ | ✗ | ✓✓ |
+| serif | ✓ | ✗ | ✓ | ✓✓ | ✗ | ✗ |
+| display | ✓✓ | ✓ | ✓ | ✓✓ | ✓✓ | ✓ |

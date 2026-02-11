@@ -120,22 +120,28 @@ export async function convertMarkdown(markdownPath: string, options?: { title?: 
   const { frontmatter, body } = parseFrontmatter(content);
 
   let title = options?.title ?? frontmatter.title ?? '';
+  let bodyWithoutTitle = body;
   if (!title) {
     const lines = body.split('\n');
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
       const headingMatch = trimmed.match(/^#{1,2}\s+(.+)$/);
-      if (headingMatch) title = headingMatch[1]!;
+      if (headingMatch) {
+        title = headingMatch[1]!;
+        bodyWithoutTitle = body.replace(/^#{1,2}\s+.+\r?\n?/, '');
+      }
       break;
     }
+  } else {
+    bodyWithoutTitle = body.replace(/^#{1,2}\s+.+\r?\n?/, '');
   }
   if (!title) title = path.basename(markdownPath, path.extname(markdownPath));
   const author = frontmatter.author || '';
   let summary = frontmatter.description || frontmatter.summary || '';
 
   if (!summary) {
-    const lines = body.split('\n');
+    const lines = bodyWithoutTitle.split('\n');
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
@@ -161,7 +167,7 @@ export async function convertMarkdown(markdownPath: string, options?: { title?: 
   const images: Array<{ src: string; placeholder: string }> = [];
   let imageCounter = 0;
 
-  const modifiedBody = body.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, src) => {
+  const modifiedBody = bodyWithoutTitle.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, src) => {
     const placeholder = `WECHATIMGPH_${++imageCounter}`;
     images.push({ src, placeholder });
     return placeholder;

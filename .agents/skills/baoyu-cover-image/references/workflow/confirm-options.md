@@ -2,22 +2,22 @@
 
 ## Purpose
 
-Validate all 5 dimensions + aspect ratio.
+Validate all 6 dimensions + aspect ratio.
 
 ## Skip Conditions
 
 | Condition | Skipped Questions | Still Asked |
 |-----------|-------------------|-------------|
-| `--quick` flag | Type, Palette, Rendering, Text, Mood | **Aspect Ratio** (unless `--aspect` specified) |
-| All 5 dimensions + `--aspect` specified | All | None |
-| `quick_mode: true` in EXTEND.md | Type, Palette, Rendering, Text, Mood | **Aspect Ratio** (unless `--aspect` specified) |
-| Otherwise | None | All 6 questions |
+| `--quick` flag | Type, Palette, Rendering, Text, Mood, Font | **Aspect Ratio** (unless `--aspect` specified) |
+| All 6 dimensions + `--aspect` specified | All | None |
+| `quick_mode: true` in EXTEND.md | Type, Palette, Rendering, Text, Mood, Font | **Aspect Ratio** (unless `--aspect` specified) |
+| Otherwise | None | All 7 questions |
 
 **Important**: Aspect ratio is ALWAYS asked unless explicitly specified via `--aspect` CLI flag. User presets in EXTEND.md are shown as recommended option, not auto-selected.
 
 ## Quick Mode Output
 
-When skipping 5 dimensions:
+When skipping 6 dimensions:
 
 ```
 Quick Mode: Auto-selected dimensions
@@ -26,8 +26,9 @@ Quick Mode: Auto-selected dimensions
 • Rendering: [rendering] ([reason])
 • Text: [text] ([reason])
 • Mood: [mood] ([reason])
+• Font: [font] ([reason])
 
-[Then ask Question 6: Aspect Ratio]
+[Then ask Question 7: Aspect Ratio]
 ```
 
 ## Confirmation Flow
@@ -91,7 +92,26 @@ options:
     description: "Polished, precise, subtle gradients"
 ```
 
-### Q4: Other Settings (skip if all remaining dimensions already specified)
+### Q4: Font (skip if `--font`)
+
+```yaml
+header: "Font"
+question: "Which font style?"
+multiSelect: false
+options:
+  - label: "[auto-recommended font] (Recommended)"
+    description: "[reason based on content signals]"
+  - label: "clean"
+    description: "Modern geometric sans-serif - tech, professional"
+  - label: "handwritten"
+    description: "Warm hand-lettered - personal, friendly"
+  - label: "serif"
+    description: "Classic elegant - editorial, luxury"
+  - label: "display"
+    description: "Bold decorative - announcements, entertainment"
+```
+
+### Q5: Other Settings (skip if all remaining dimensions already specified)
 
 Combine remaining settings into one question. Include: Output Dir (if no preference + file path input), Text, Mood, Aspect. Show auto-selected values as recommended option. User can accept all or type adjustments via "Other".
 

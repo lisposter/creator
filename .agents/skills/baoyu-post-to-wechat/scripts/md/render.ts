@@ -374,7 +374,7 @@ export function initRenderer(opts: IOpts = {}): RendererAPI {
 
       listCounters[listCounters.length - 1] = idx + 1;
 
-      const prefix = ordered ? `${idx}. ` : "• ";
+      const prefix = ordered ? "" : "• ";
 
       let content: string;
       try {

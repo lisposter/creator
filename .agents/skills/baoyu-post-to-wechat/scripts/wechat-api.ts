@@ -517,6 +517,13 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  if (digest && digest.length > 120) {
+    const truncated = digest.slice(0, 117);
+    const lastPunct = Math.max(truncated.lastIndexOf("。"), truncated.lastIndexOf("，"), truncated.lastIndexOf("；"), truncated.lastIndexOf("、"));
+    digest = lastPunct > 80 ? truncated.slice(0, lastPunct + 1) : truncated + "...";
+    console.error(`[wechat-api] Digest truncated to ${digest.length} chars`);
+  }
+
   console.error(`[wechat-api] Title: ${title}`);
   if (author) console.error(`[wechat-api] Author: ${author}`);
   if (digest) console.error(`[wechat-api] Digest: ${digest.slice(0, 50)}...`);
@@ -547,11 +554,14 @@ async function main(): Promise<void> {
   htmlContent = processedHtml;
 
   let thumbMediaId = "";
-  const coverPath = args.cover ||
+  const rawCoverPath = args.cover ||
     frontmatter.featureImage ||
     frontmatter.coverImage ||
     frontmatter.cover ||
     frontmatter.image;
+  const coverPath = rawCoverPath && !path.isAbsolute(rawCoverPath) && args.cover
+    ? path.resolve(process.cwd(), rawCoverPath)
+    : rawCoverPath;
 
   if (coverPath) {
     console.error(`[wechat-api] Uploading cover: ${coverPath}`);

@@ -58,7 +58,9 @@ export async function generateImage(
   if (!apiKey) throw new Error("DASHSCOPE_API_KEY is required");
 
   if (args.referenceImages.length > 0) {
-    console.error("Warning: Reference images not yet supported with DashScope, ignoring.");
+    throw new Error(
+      "Reference images are not supported with DashScope provider in baoyu-image-gen. Use --provider google with a Gemini multimodal model."
+    );
   }
 
   const size = args.size ? normalizeSize(args.size) : getSizeFromAspectRatio(args.aspectRatio, args.quality);

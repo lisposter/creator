@@ -1,3 +1,8 @@
+import { parseHTML } from "linkedom";
+import { Readability } from "@mozilla/readability";
+import TurndownService from "turndown";
+import { gfm } from "turndown-plugin-gfm";
+
 export interface PageMetadata {
   url: string;
   title: string;
@@ -12,212 +17,835 @@ export interface ConversionResult {
   markdown: string;
 }
 
-export const cleanupAndExtractScript = `
-(function() {
+interface ExtractionCandidate {
+  title: string | null;
+  byline: string | null;
+  excerpt: string | null;
+  published: string | null;
+  html: string | null;
+  textContent: string;
+  method: string;
+}
+
+type AnyRecord = Record<string, unknown>;
+
+const MIN_CONTENT_LENGTH = 120;
+const GOOD_CONTENT_LENGTH = 900;
+
+const CONTENT_SELECTORS = [
+  "article",
+  "main article",
+  "[role='main'] article",
+  "[itemprop='articleBody']",
+  ".article-content",
+  ".article-body",
+  ".post-content",
+  ".entry-content",
+  ".story-body",
+  "main",
+  "[role='main']",
+  "#content",
+  ".content",
+];
+
+const REMOVE_SELECTORS = [
+  "script",
+  "style",
+  "noscript",
+  "template",
+  "iframe",
+  "svg",
+  "path",
+  "nav",
+  "aside",
+  "footer",
+  "header",
+  "form",
+  ".advertisement",
+  ".ads",
+  ".social-share",
+  ".related-articles",
+  ".comments",
+  ".newsletter",
+  ".cookie-banner",
+  ".cookie-consent",
+  "[role='navigation']",
+  "[aria-label*='cookie' i]",
+];
+
+const PUBLISHED_TIME_SELECTORS = [
+  "meta[property='article:published_time']",
+  "meta[name='pubdate']",
+  "meta[name='publishdate']",
+  "meta[name='date']",
+  "time[datetime]",
+];
+
+const ARTICLE_TYPES = new Set([
+  "Article",
+  "NewsArticle",
+  "BlogPosting",
+  "WebPage",
+  "ReportageNewsArticle",
+]);
+
+const NEXT_DATA_CONTENT_PATHS = [
+  "props.pageProps.content.body",
+  "props.pageProps.article.body",
+  "props.pageProps.article.content",
+  "props.pageProps.post.body",
+  "props.pageProps.post.content",
+  "props.pageProps.data.body",
+  "props.pageProps.story.body.content",
+];
+
+const cleanupAndExtractScriptBody = String.raw`
+(function () {
+  const baseUrl = document.baseURI || location.href;
+
+  function toAbsolute(url) {
+    if (!url) return url;
+    try {
+      return new URL(url, baseUrl).href;
+    } catch {
+      return url;
+    }
+  }
+
+  function absolutizeAttr(selector, attr) {
+    document.querySelectorAll(selector).forEach((el) => {
+      const value = el.getAttribute(attr);
+      if (!value) return;
+      const abs = toAbsolute(value);
+      if (abs) el.setAttribute(attr, abs);
+    });
+  }
+
+  function absolutizeSrcset(selector) {
+    document.querySelectorAll(selector).forEach((el) => {
+      const srcset = el.getAttribute("srcset");
+      if (!srcset) return;
+
+      const normalized = srcset
+        .split(",")
+        .map((part) => {
+          const trimmed = part.trim();
+          if (!trimmed) return "";
+          const pieces = trimmed.split(/\s+/);
+          const url = pieces[0];
+          const descriptor = pieces.slice(1).join(" ");
+          const absoluteUrl = toAbsolute(url);
+          return descriptor ? absoluteUrl + " " + descriptor : absoluteUrl;
+        })
+        .filter(Boolean)
+        .join(", ");
+
+      if (normalized) {
+        el.setAttribute("srcset", normalized);
+      }
+    });
+  }
+
+  absolutizeAttr("a[href]", "href");
+  absolutizeAttr("img[src], video[src], audio[src], source[src]", "src");
+  absolutizeSrcset("img[srcset], source[srcset]");
+
   const removeSelectors = [
-    'script', 'style', 'noscript', 'iframe', 'svg', 'canvas',
-    'header nav', 'footer', '.sidebar', '.nav', '.navigation',
-    '.advertisement', '.ad', '.ads', '.cookie-banner', '.popup',
-    '[role="banner"]', '[role="navigation"]', '[role="complementary"]'
+    "noscript",
+    "template",
+    ".cookie-banner",
+    ".cookie-consent",
+    ".consent-banner",
+    "[aria-label*='cookie' i]",
+    ".advertisement",
+    ".ads"
   ];
 
   for (const sel of removeSelectors) {
     try {
-      document.querySelectorAll(sel).forEach(el => el.remove());
+      document.querySelectorAll(sel).forEach((el) => el.remove());
     } catch {}
   }
 
-  document.querySelectorAll('*').forEach(el => {
-    el.removeAttribute('style');
-    el.removeAttribute('onclick');
-    el.removeAttribute('onload');
-    el.removeAttribute('onerror');
-  });
-
-  const baseUrl = document.baseURI || location.href;
-  document.querySelectorAll('a[href]').forEach(a => {
-    try {
-      const href = a.getAttribute('href');
-      if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
-        a.setAttribute('href', new URL(href, baseUrl).href);
-      }
-    } catch {}
-  });
-  document.querySelectorAll('img[src]').forEach(img => {
-    try {
-      const src = img.getAttribute('src');
-      if (src) img.setAttribute('src', new URL(src, baseUrl).href);
-    } catch {}
-  });
-
-  const getMeta = (names) => {
+  function getMeta(names) {
     for (const name of names) {
-      const el = document.querySelector(\`meta[name="\${name}"], meta[property="\${name}"]\`);
-      if (el) {
-        const content = el.getAttribute('content');
-        if (content) return content.trim();
-      }
+      const el = document.querySelector('meta[name="' + name + '"]') || document.querySelector('meta[property="' + name + '"]');
+      const content = el && el.getAttribute("content");
+      if (content && content.trim()) return content.trim();
     }
     return undefined;
-  };
+  }
 
-  const getTitle = () => {
-    const ogTitle = getMeta(['og:title', 'twitter:title']);
-    if (ogTitle) return ogTitle;
-    const h1 = document.querySelector('h1');
-    if (h1) return h1.textContent?.trim();
-    return document.title?.trim() || '';
-  };
+  function flattenJsonLdItems(value) {
+    if (!value || typeof value !== "object") return [];
+    if (Array.isArray(value)) {
+      return value.flatMap(flattenJsonLdItems);
+    }
 
-  const getPublished = () => {
-    const timeEl = document.querySelector('time[datetime]');
-    if (timeEl) return timeEl.getAttribute('datetime');
-    return getMeta(['article:published_time', 'datePublished', 'date']);
-  };
+    const obj = value;
+    if (Array.isArray(obj["@graph"])) {
+      return obj["@graph"].flatMap(flattenJsonLdItems);
+    }
 
-  const main = document.querySelector('main, article, [role="main"], .main-content, .post-content, .article-content, .content');
-  const html = main ? main.innerHTML : document.body.innerHTML;
+    return [obj];
+  }
+
+  function extractJsonLdMeta() {
+    const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+    for (const script of scripts) {
+      try {
+        const parsed = JSON.parse(script.textContent || "");
+        const items = flattenJsonLdItems(parsed);
+        for (const item of items) {
+          const rawType = Array.isArray(item["@type"]) ? item["@type"][0] : item["@type"];
+          if (typeof rawType !== "string") continue;
+          if (!["Article", "NewsArticle", "BlogPosting", "WebPage"].includes(rawType)) continue;
+
+          const author = (() => {
+            if (typeof item.author === "string") return item.author;
+            if (Array.isArray(item.author) && item.author.length > 0) {
+              const first = item.author[0];
+              return first && typeof first === "object" ? first.name : undefined;
+            }
+            if (item.author && typeof item.author === "object") {
+              return item.author.name;
+            }
+            return undefined;
+          })();
+
+          return {
+            title: item.headline || item.name,
+            description: item.description,
+            author: typeof author === "string" ? author : undefined,
+            published: item.datePublished || item.dateCreated,
+          };
+        }
+      } catch {}
+    }
+    return {};
+  }
+
+  const jsonLd = extractJsonLdMeta();
+
+  const timeEl = document.querySelector("time[datetime]");
+  const title =
+    getMeta(["og:title", "twitter:title"]) ||
+    (typeof jsonLd.title === "string" ? jsonLd.title : undefined) ||
+    document.querySelector("h1")?.textContent?.trim() ||
+    document.title?.trim() ||
+    "";
+
+  const description =
+    getMeta(["description", "og:description", "twitter:description"]) ||
+    (typeof jsonLd.description === "string" ? jsonLd.description : undefined);
+
+  const author =
+    getMeta(["author", "article:author", "twitter:creator"]) ||
+    (typeof jsonLd.author === "string" ? jsonLd.author : undefined);
+
+  const published =
+    timeEl?.getAttribute("datetime") ||
+    getMeta(["article:published_time", "datePublished", "publishdate", "date"]) ||
+    (typeof jsonLd.published === "string" ? jsonLd.published : undefined);
 
   return {
-    title: getTitle(),
-    description: getMeta(['description', 'og:description', 'twitter:description']),
-    author: getMeta(['author', 'article:author', 'twitter:creator']),
-    published: getPublished(),
-    html: html
+    title,
+    description,
+    author,
+    published,
+    html: document.documentElement.outerHTML,
   };
 })()
 `;
 
-function decodeHtmlEntities(text: string): string {
-  return text
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/g, "'")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)))
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, n) => String.fromCharCode(parseInt(n, 16)));
+export const cleanupAndExtractScript = cleanupAndExtractScriptBody;
+
+function pickString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed) return trimmed;
+    }
+  }
+  return null;
 }
 
-function stripTags(html: string): string {
-  return html.replace(/<[^>]+>/g, '');
+function generateExcerpt(excerpt: string | null, textContent: string | null): string | null {
+  if (excerpt) return excerpt;
+  if (!textContent) return null;
+  const trimmed = textContent.trim();
+  if (!trimmed) return null;
+  return trimmed.length > 200 ? `${trimmed.slice(0, 200)}...` : trimmed;
 }
 
-function normalizeWhitespace(text: string): string {
-  return text.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+function extractPublishedTime(document: any): string | null {
+  for (const selector of PUBLISHED_TIME_SELECTORS) {
+    const el = document.querySelector(selector);
+    if (!el) continue;
+    const value = el.getAttribute("content") ?? el.getAttribute("datetime");
+    if (value && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function extractTitle(document: any): string | null {
+  const ogTitle = document.querySelector("meta[property='og:title']")?.getAttribute("content");
+  if (ogTitle && ogTitle.trim()) return ogTitle.trim();
+
+  const twitterTitle = document
+    .querySelector("meta[name='twitter:title']")
+    ?.getAttribute("content");
+  if (twitterTitle && twitterTitle.trim()) return twitterTitle.trim();
+
+  const title = document.querySelector("title")?.textContent?.trim();
+  if (title) {
+    const cleaned = title.split(/\s*[-|–—]\s*/)[0]?.trim();
+    if (cleaned) return cleaned;
+  }
+
+  const h1 = document.querySelector("h1")?.textContent?.trim();
+  return h1 || null;
+}
+
+function extractTextFromHtml(html: string): string {
+  const { document } = parseHTML(`<!doctype html><html><body>${html}</body></html>`);
+  for (const selector of ["script", "style", "noscript", "template", "iframe", "svg", "path"]) {
+    for (const el of document.querySelectorAll(selector)) {
+      el.remove();
+    }
+  }
+  return document.body?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+}
+
+function parseDocument(html: string): any {
+  const normalized = /<\s*html[\s>]/i.test(html)
+    ? html
+    : `<!doctype html><html><body>${html}</body></html>`;
+  return parseHTML(normalized).document;
+}
+
+function sanitizeHtml(html: string): string {
+  const { document } = parseHTML(`<div id="__root">${html}</div>`);
+  const root = document.querySelector("#__root");
+  if (!root) return html;
+
+  for (const selector of ["script", "style", "iframe", "noscript", "template", "svg", "path"]) {
+    for (const el of root.querySelectorAll(selector)) {
+      el.remove();
+    }
+  }
+
+  return root.innerHTML;
+}
+
+function flattenJsonLdItems(data: unknown): AnyRecord[] {
+  if (!data || typeof data !== "object") return [];
+  if (Array.isArray(data)) return data.flatMap(flattenJsonLdItems);
+
+  const item = data as AnyRecord;
+  if (Array.isArray(item["@graph"])) {
+    return (item["@graph"] as unknown[]).flatMap(flattenJsonLdItems);
+  }
+
+  return [item];
+}
+
+function parseJsonLdScripts(document: any): AnyRecord[] {
+  const results: AnyRecord[] = [];
+  const scripts = document.querySelectorAll("script[type='application/ld+json']");
+
+  for (const script of scripts) {
+    try {
+      const data = JSON.parse(script.textContent ?? "");
+      results.push(...flattenJsonLdItems(data));
+    } catch {
+      // ignore malformed blocks
+    }
+  }
+
+  return results;
+}
+
+function isArticleType(item: AnyRecord): boolean {
+  const value = Array.isArray(item["@type"]) ? item["@type"][0] : item["@type"];
+  return typeof value === "string" && ARTICLE_TYPES.has(value);
+}
+
+function extractAuthorFromJsonLd(authorData: unknown): string | null {
+  if (typeof authorData === "string") return authorData;
+  if (!authorData || typeof authorData !== "object") return null;
+
+  if (Array.isArray(authorData)) {
+    const names = authorData
+      .map((author) => extractAuthorFromJsonLd(author))
+      .filter((name): name is string => Boolean(name));
+    return names.length > 0 ? names.join(", ") : null;
+  }
+
+  const author = authorData as AnyRecord;
+  return typeof author.name === "string" ? author.name : null;
+}
+
+function parseJsonLdItem(item: AnyRecord): ExtractionCandidate | null {
+  if (!isArticleType(item)) return null;
+
+  const rawContent =
+    (typeof item.articleBody === "string" && item.articleBody) ||
+    (typeof item.text === "string" && item.text) ||
+    (typeof item.description === "string" && item.description) ||
+    null;
+
+  if (!rawContent) return null;
+
+  const content = rawContent.trim();
+  const htmlLike = /<\/?[a-z][\s\S]*>/i.test(content);
+  const textContent = htmlLike ? extractTextFromHtml(content) : content;
+
+  if (textContent.length < MIN_CONTENT_LENGTH) return null;
+
+  return {
+    title: pickString(item.headline, item.name),
+    byline: extractAuthorFromJsonLd(item.author),
+    excerpt: pickString(item.description),
+    published: pickString(item.datePublished, item.dateCreated),
+    html: htmlLike ? content : null,
+    textContent,
+    method: "json-ld",
+  };
+}
+
+function tryJsonLdExtraction(document: any): ExtractionCandidate | null {
+  for (const item of parseJsonLdScripts(document)) {
+    const extracted = parseJsonLdItem(item);
+    if (extracted) return extracted;
+  }
+  return null;
+}
+
+function getByPath(value: unknown, path: string): unknown {
+  let current = value;
+  for (const part of path.split(".")) {
+    if (!current || typeof current !== "object") return undefined;
+    current = (current as AnyRecord)[part];
+  }
+  return current;
+}
+
+function isContentBlockArray(value: unknown): value is AnyRecord[] {
+  if (!Array.isArray(value) || value.length === 0) return false;
+  return value.slice(0, 5).some((item) => {
+    if (!item || typeof item !== "object") return false;
+    const obj = item as AnyRecord;
+    return "type" in obj || "text" in obj || "textHtml" in obj || "content" in obj;
+  });
+}
+
+function extractTextFromContentBlocks(blocks: AnyRecord[]): string {
+  const parts: string[] = [];
+
+  function pushParagraph(text: string): void {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    parts.push(trimmed, "\n\n");
+  }
+
+  function walk(node: unknown): void {
+    if (!node || typeof node !== "object") return;
+    const block = node as AnyRecord;
+
+    if (typeof block.text === "string") {
+      pushParagraph(block.text);
+      return;
+    }
+
+    if (typeof block.textHtml === "string") {
+      pushParagraph(extractTextFromHtml(block.textHtml));
+      return;
+    }
+
+    if (Array.isArray(block.items)) {
+      for (const item of block.items) {
+        if (item && typeof item === "object") {
+          const text = pickString((item as AnyRecord).text);
+          if (text) parts.push(`- ${text}\n`);
+        }
+      }
+      parts.push("\n");
+    }
+
+    if (Array.isArray(block.components)) {
+      for (const component of block.components) {
+        walk(component);
+      }
+    }
+
+    if (Array.isArray(block.content)) {
+      for (const child of block.content) {
+        walk(child);
+      }
+    }
+  }
+
+  for (const block of blocks) {
+    walk(block);
+  }
+
+  return parts.join("").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function tryStringBodyExtraction(
+  content: string,
+  meta: AnyRecord,
+  document: any,
+  method: string
+): ExtractionCandidate | null {
+  if (!content || content.length < MIN_CONTENT_LENGTH) return null;
+
+  const isHtml = /<\/?[a-z][\s\S]*>/i.test(content);
+  const html = isHtml ? sanitizeHtml(content) : null;
+  const textContent = isHtml ? extractTextFromHtml(html) : content.trim();
+
+  if (textContent.length < MIN_CONTENT_LENGTH) return null;
+
+  return {
+    title: pickString(meta.headline, meta.title, extractTitle(document)),
+    byline: pickString(meta.byline, meta.author),
+    excerpt: pickString(meta.description, meta.excerpt, generateExcerpt(null, textContent)),
+    published: pickString(meta.datePublished, meta.publishedAt, extractPublishedTime(document)),
+    html,
+    textContent,
+    method,
+  };
+}
+
+function tryNextDataExtraction(document: any): ExtractionCandidate | null {
+  try {
+    const script = document.querySelector("script#__NEXT_DATA__");
+    if (!script?.textContent) return null;
+
+    const data = JSON.parse(script.textContent) as AnyRecord;
+    const pageProps = (getByPath(data, "props.pageProps") ?? {}) as AnyRecord;
+
+    for (const path of NEXT_DATA_CONTENT_PATHS) {
+      const value = getByPath(data, path);
+
+      if (typeof value === "string") {
+        const parentPath = path.split(".").slice(0, -1).join(".");
+        const parent = (getByPath(data, parentPath) ?? {}) as AnyRecord;
+        const meta = {
+          ...pageProps,
+          ...parent,
+          title: parent.title ?? (pageProps.title as string | undefined),
+        };
+
+        const candidate = tryStringBodyExtraction(value, meta, document, "next-data");
+        if (candidate) return candidate;
+      }
+
+      if (isContentBlockArray(value)) {
+        const textContent = extractTextFromContentBlocks(value);
+        if (textContent.length < MIN_CONTENT_LENGTH) continue;
+
+        return {
+          title: pickString(
+            getByPath(data, "props.pageProps.content.headline"),
+            getByPath(data, "props.pageProps.article.headline"),
+            getByPath(data, "props.pageProps.article.title"),
+            getByPath(data, "props.pageProps.post.title"),
+            pageProps.title,
+            extractTitle(document)
+          ),
+          byline: pickString(
+            getByPath(data, "props.pageProps.author.name"),
+            getByPath(data, "props.pageProps.article.author.name")
+          ),
+          excerpt: pickString(
+            getByPath(data, "props.pageProps.content.description"),
+            getByPath(data, "props.pageProps.article.description"),
+            pageProps.description,
+            generateExcerpt(null, textContent)
+          ),
+          published: pickString(
+            getByPath(data, "props.pageProps.content.datePublished"),
+            getByPath(data, "props.pageProps.article.datePublished"),
+            getByPath(data, "props.pageProps.publishedAt"),
+            extractPublishedTime(document)
+          ),
+          html: null,
+          textContent,
+          method: "next-data",
+        };
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function buildReadabilityCandidate(
+  article: ReturnType<Readability["parse"]>,
+  document: any,
+  method: string
+): ExtractionCandidate | null {
+  const textContent = article?.textContent?.trim() ?? "";
+  if (textContent.length < MIN_CONTENT_LENGTH) return null;
+
+  return {
+    title: pickString(article?.title, extractTitle(document)),
+    byline: pickString(article?.byline),
+    excerpt: pickString(article?.excerpt, generateExcerpt(null, textContent)),
+    published: pickString(article?.publishedTime, extractPublishedTime(document)),
+    html: article?.content ? sanitizeHtml(article.content) : null,
+    textContent,
+    method,
+  };
+}
+
+function tryReadability(document: any): ExtractionCandidate | null {
+  try {
+    const strictClone = document.cloneNode(true) as Document;
+    const strictResult = buildReadabilityCandidate(
+      new Readability(strictClone).parse(),
+      document,
+      "readability"
+    );
+    if (strictResult) return strictResult;
+
+    const relaxedClone = document.cloneNode(true) as Document;
+    return buildReadabilityCandidate(
+      new Readability(relaxedClone, { charThreshold: 120 }).parse(),
+      document,
+      "readability-relaxed"
+    );
+  } catch {
+    return null;
+  }
+}
+
+function trySelectorExtraction(document: any): ExtractionCandidate | null {
+  for (const selector of CONTENT_SELECTORS) {
+    const element = document.querySelector(selector);
+    if (!element) continue;
+
+    const clone = element.cloneNode(true) as Element;
+    for (const removeSelector of REMOVE_SELECTORS) {
+      for (const node of clone.querySelectorAll(removeSelector)) {
+        node.remove();
+      }
+    }
+
+    const html = sanitizeHtml(clone.innerHTML);
+    const textContent = extractTextFromHtml(html);
+    if (textContent.length < MIN_CONTENT_LENGTH) continue;
+
+    return {
+      title: extractTitle(document),
+      byline: null,
+      excerpt: generateExcerpt(null, textContent),
+      published: extractPublishedTime(document),
+      html,
+      textContent,
+      method: `selector:${selector}`,
+    };
+  }
+
+  return null;
+}
+
+function tryBodyExtraction(document: any): ExtractionCandidate | null {
+  const body = document.body;
+  if (!body) return null;
+
+  const clone = body.cloneNode(true) as Element;
+  for (const removeSelector of REMOVE_SELECTORS) {
+    for (const node of clone.querySelectorAll(removeSelector)) {
+      node.remove();
+    }
+  }
+
+  const html = sanitizeHtml(clone.innerHTML);
+  const textContent = extractTextFromHtml(html);
+  if (!textContent) return null;
+
+  return {
+    title: extractTitle(document),
+    byline: null,
+    excerpt: generateExcerpt(null, textContent),
+    published: extractPublishedTime(document),
+    html,
+    textContent,
+    method: "body-fallback",
+  };
+}
+
+function pickBestCandidate(candidates: ExtractionCandidate[]): ExtractionCandidate | null {
+  if (candidates.length === 0) return null;
+
+  const methodOrder = [
+    "readability",
+    "readability-relaxed",
+    "next-data",
+    "json-ld",
+    "selector:",
+    "body-fallback",
+  ];
+
+  function methodRank(method: string): number {
+    const idx = methodOrder.findIndex((entry) =>
+      entry.endsWith(":") ? method.startsWith(entry) : method === entry
+    );
+    return idx === -1 ? methodOrder.length : idx;
+  }
+
+  const ranked = [...candidates].sort((a, b) => {
+    const rankA = methodRank(a.method);
+    const rankB = methodRank(b.method);
+    if (rankA !== rankB) return rankA - rankB;
+    return (b.textContent.length ?? 0) - (a.textContent.length ?? 0);
+  });
+
+  for (const candidate of ranked) {
+    if (candidate.textContent.length >= GOOD_CONTENT_LENGTH) {
+      return candidate;
+    }
+  }
+
+  for (const candidate of ranked) {
+    if (candidate.textContent.length >= MIN_CONTENT_LENGTH) {
+      return candidate;
+    }
+  }
+
+  return ranked[0];
+}
+
+function extractFromHtml(html: string): ExtractionCandidate | null {
+  const document = parseDocument(html);
+
+  const readabilityCandidate = tryReadability(document);
+  const nextDataCandidate = tryNextDataExtraction(document);
+  const jsonLdCandidate = tryJsonLdExtraction(document);
+  const selectorCandidate = trySelectorExtraction(document);
+  const bodyCandidate = tryBodyExtraction(document);
+
+  const candidates = [
+    readabilityCandidate,
+    nextDataCandidate,
+    jsonLdCandidate,
+    selectorCandidate,
+    bodyCandidate,
+  ].filter((candidate): candidate is ExtractionCandidate => Boolean(candidate));
+
+  const winner = pickBestCandidate(candidates);
+  if (!winner) return null;
+
+  return {
+    ...winner,
+    title: winner.title ?? extractTitle(document),
+    published: winner.published ?? extractPublishedTime(document),
+    excerpt: winner.excerpt ?? generateExcerpt(null, winner.textContent),
+  };
+}
+
+const turndown = new TurndownService({
+  headingStyle: "atx",
+  hr: "---",
+  bulletListMarker: "-",
+  codeBlockStyle: "fenced",
+  emDelimiter: "*",
+  strongDelimiter: "**",
+  linkStyle: "inlined",
+});
+
+turndown.use(gfm);
+
+turndown.remove(["script", "style", "iframe", "noscript", "template", "svg", "path"]);
+
+turndown.addRule("collapseFigure", {
+  filter: "figure",
+  replacement(content) {
+    return `\n\n${content.trim()}\n\n`;
+  },
+});
+
+turndown.addRule("dropInvisibleAnchors", {
+  filter(node) {
+    return node.nodeName === "A" && !(node as Element).textContent?.trim();
+  },
+  replacement() {
+    return "";
+  },
+});
+
+function normalizeMarkdown(markdown: string): string {
+  return markdown
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function convertHtmlToMarkdown(html: string): string {
+  if (!html || !html.trim()) return "";
+
+  try {
+    const sanitized = sanitizeHtml(html);
+    return turndown.turndown(sanitized);
+  } catch {
+    return "";
+  }
+}
+
+function fallbackPlainText(html: string): string {
+  const document = parseDocument(html);
+  for (const selector of ["script", "style", "noscript", "template", "iframe", "svg", "path"]) {
+    for (const el of document.querySelectorAll(selector)) {
+      el.remove();
+    }
+  }
+  const text = document.body?.textContent ?? document.documentElement?.textContent ?? "";
+  return normalizeMarkdown(text.replace(/\s+/g, " "));
 }
 
 export function htmlToMarkdown(html: string): string {
-  let md = html;
+  if (!html || !html.trim()) return "";
 
-  md = md.replace(/<br\s*\/?>/gi, '\n');
-  md = md.replace(/<hr\s*\/?>/gi, '\n\n---\n\n');
+  const extracted = extractFromHtml(html);
+  if (!extracted) {
+    return fallbackPlainText(html);
+  }
 
-  md = md.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, (_, c) => `\n\n# ${stripTags(c).trim()}\n\n`);
-  md = md.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, (_, c) => `\n\n## ${stripTags(c).trim()}\n\n`);
-  md = md.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, (_, c) => `\n\n### ${stripTags(c).trim()}\n\n`);
-  md = md.replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, (_, c) => `\n\n#### ${stripTags(c).trim()}\n\n`);
-  md = md.replace(/<h5[^>]*>([\s\S]*?)<\/h5>/gi, (_, c) => `\n\n##### ${stripTags(c).trim()}\n\n`);
-  md = md.replace(/<h6[^>]*>([\s\S]*?)<\/h6>/gi, (_, c) => `\n\n###### ${stripTags(c).trim()}\n\n`);
+  let markdown = extracted.html ? convertHtmlToMarkdown(extracted.html) : "";
+  if (!markdown.trim()) {
+    markdown = extracted.textContent;
+  }
 
-  md = md.replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, (_, c) => `**${stripTags(c).trim()}**`);
-  md = md.replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, (_, c) => `**${stripTags(c).trim()}**`);
-  md = md.replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, (_, c) => `*${stripTags(c).trim()}*`);
-  md = md.replace(/<i[^>]*>([\s\S]*?)<\/i>/gi, (_, c) => `*${stripTags(c).trim()}*`);
-  md = md.replace(/<del[^>]*>([\s\S]*?)<\/del>/gi, (_, c) => `~~${stripTags(c).trim()}~~`);
-  md = md.replace(/<s[^>]*>([\s\S]*?)<\/s>/gi, (_, c) => `~~${stripTags(c).trim()}~~`);
-  md = md.replace(/<mark[^>]*>([\s\S]*?)<\/mark>/gi, (_, c) => `==${stripTags(c).trim()}==`);
+  return normalizeMarkdown(markdown);
+}
 
-  md = md.replace(/<a[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, text) => {
-    const t = stripTags(text).trim();
-    if (!t || href.startsWith('javascript:')) return t;
-    return `[${t}](${href})`;
-  });
-
-  md = md.replace(/<img[^>]*src=["']([^"']+)["'][^>]*alt=["']([^"']*)["'][^>]*\/?>/gi, (_, src, alt) => `![${alt}](${src})`);
-  md = md.replace(/<img[^>]*alt=["']([^"']*)["'][^>]*src=["']([^"']+)["'][^>]*\/?>/gi, (_, alt, src) => `![${alt}](${src})`);
-  md = md.replace(/<img[^>]*src=["']([^"']+)["'][^>]*\/?>/gi, (_, src) => `![](${src})`);
-
-  md = md.replace(/<pre[^>]*><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi, (_, code) => `\n\n\`\`\`\n${decodeHtmlEntities(stripTags(code)).trim()}\n\`\`\`\n\n`);
-  md = md.replace(/<pre[^>]*>([\s\S]*?)<\/pre>/gi, (_, code) => `\n\n\`\`\`\n${decodeHtmlEntities(stripTags(code)).trim()}\n\`\`\`\n\n`);
-  md = md.replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, (_, code) => `\`${decodeHtmlEntities(stripTags(code)).trim()}\``);
-
-  md = md.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, (_, content) => {
-    const lines = stripTags(content).trim().split('\n');
-    return '\n\n' + lines.map(l => `> ${l.trim()}`).join('\n') + '\n\n';
-  });
-
-  md = md.replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, (_, items) => {
-    const lis = items.match(/<li[^>]*>([\s\S]*?)<\/li>/gi) || [];
-    const lines = lis.map(li => {
-      const content = li.replace(/<li[^>]*>([\s\S]*?)<\/li>/i, '$1');
-      return `- ${stripTags(content).trim()}`;
-    });
-    return '\n\n' + lines.join('\n') + '\n\n';
-  });
-
-  md = md.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (_, items) => {
-    const lis = items.match(/<li[^>]*>([\s\S]*?)<\/li>/gi) || [];
-    const lines = lis.map((li, i) => {
-      const content = li.replace(/<li[^>]*>([\s\S]*?)<\/li>/i, '$1');
-      return `${i + 1}. ${stripTags(content).trim()}`;
-    });
-    return '\n\n' + lines.join('\n') + '\n\n';
-  });
-
-  md = md.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_, table) => {
-    const rows: string[][] = [];
-    const trMatches = table.match(/<tr[^>]*>([\s\S]*?)<\/tr>/gi) || [];
-    for (const tr of trMatches) {
-      const cells: string[] = [];
-      const cellMatches = tr.match(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi) || [];
-      for (const cell of cellMatches) {
-        const content = cell.replace(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/i, '$1');
-        cells.push(stripTags(content).trim().replace(/\|/g, '\\|'));
-      }
-      if (cells.length > 0) rows.push(cells);
-    }
-    if (rows.length === 0) return '';
-    const colCount = Math.max(...rows.map(r => r.length));
-    const normalizedRows = rows.map(r => {
-      while (r.length < colCount) r.push('');
-      return r;
-    });
-    const header = `| ${normalizedRows[0].join(' | ')} |`;
-    const sep = `| ${normalizedRows[0].map(() => '---').join(' | ')} |`;
-    const body = normalizedRows.slice(1).map(r => `| ${r.join(' | ')} |`).join('\n');
-    return '\n\n' + header + '\n' + sep + (body ? '\n' + body : '') + '\n\n';
-  });
-
-  md = md.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, (_, c) => `\n\n${stripTags(c).trim()}\n\n`);
-  md = md.replace(/<div[^>]*>([\s\S]*?)<\/div>/gi, (_, c) => `\n${stripTags(c).trim()}\n`);
-  md = md.replace(/<span[^>]*>([\s\S]*?)<\/span>/gi, (_, c) => stripTags(c));
-
-  md = stripTags(md);
-  md = decodeHtmlEntities(md);
-  md = normalizeWhitespace(md);
-
-  return md;
+function escapeYamlValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r?\n/g, "\\n");
 }
 
 export function formatMetadataYaml(meta: PageMetadata): string {
-  const lines = ['---'];
+  const lines = ["---"];
   lines.push(`url: ${meta.url}`);
-  lines.push(`title: "${meta.title.replace(/"/g, '\\"')}"`);
-  if (meta.description) lines.push(`description: "${meta.description.replace(/"/g, '\\"')}"`);
-  if (meta.author) lines.push(`author: "${meta.author.replace(/"/g, '\\"')}"`);
-  if (meta.published) lines.push(`published: "${meta.published}"`);
-  lines.push(`captured_at: "${meta.captured_at}"`);
-  lines.push('---');
-  return lines.join('\n');
+  lines.push(`title: "${escapeYamlValue(meta.title)}"`);
+  if (meta.description) lines.push(`description: "${escapeYamlValue(meta.description)}"`);
+  if (meta.author) lines.push(`author: "${escapeYamlValue(meta.author)}"`);
+  if (meta.published) lines.push(`published: "${escapeYamlValue(meta.published)}"`);
+  lines.push(`captured_at: "${escapeYamlValue(meta.captured_at)}"`);
+  lines.push("---");
+  return lines.join("\n");
 }
 
 export function createMarkdownDocument(result: ConversionResult): string {
   const yaml = formatMetadataYaml(result.metadata);
-  const titleRegex = new RegExp(`^#\\s+${result.metadata.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\n`, 'i');
-  const hasTitle = titleRegex.test(result.markdown);
-  const title = result.metadata.title && !hasTitle ? `\n\n# ${result.metadata.title}\n\n` : '\n\n';
+  const escapedTitle = result.metadata.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const titleRegex = new RegExp(`^#\\s+${escapedTitle}\\s*(\\n|$)`, "i");
+  const hasTitle = titleRegex.test(result.markdown.trimStart());
+  const title = result.metadata.title && !hasTitle ? `\n\n# ${result.metadata.title}\n\n` : "\n\n";
   return yaml + title + result.markdown;
 }

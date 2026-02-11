@@ -397,7 +397,7 @@ export async function postToWeChat(options: WeChatBrowserOptions): Promise<void>
 
     await sleep(2000);
 
-    console.log('[wechat-browser] Looking for "图文" menu...');
+    console.log('[wechat-browser] Looking for "贴图" menu...');
     const menuResult = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
       expression: `
         const menuItems = document.querySelectorAll('.new-creation__menu .new-creation__menu-item');
@@ -417,7 +417,7 @@ export async function postToWeChat(options: WeChatBrowserOptions): Promise<void>
     const initialIds = new Set(initialTargets.targetInfos.map(t => t.targetId));
     console.log(`[wechat-browser] Initial targets count: ${initialTargets.targetInfos.length}`);
 
-    console.log('[wechat-browser] Finding "图文" menu position...');
+    console.log('[wechat-browser] Finding "贴图" menu position...');
     const menuPos = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
       expression: `
         (function() {
@@ -427,10 +427,10 @@ export async function postToWeChat(options: WeChatBrowserOptions): Promise<void>
             const title = item.querySelector('.new-creation__menu-title');
             const text = title?.textContent?.trim() || '';
             console.log('Menu item text:', text);
-            if (text === '图文') {
+            if (text === '图文' || text === '贴图') {
               item.scrollIntoView({ block: 'center' });
               const rect = item.getBoundingClientRect();
-              console.log('Found 图文，rect:', JSON.stringify(rect));
+              console.log('Found 贴图，rect:', JSON.stringify(rect));
               return JSON.stringify({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, width: rect.width, height: rect.height });
             }
           }
@@ -442,9 +442,9 @@ export async function postToWeChat(options: WeChatBrowserOptions): Promise<void>
     console.log(`[wechat-browser] Menu position: ${menuPos.result.value}`);
 
     const pos = menuPos.result.value !== 'null' ? JSON.parse(menuPos.result.value) : null;
-    if (!pos) throw new Error('图文 menu not found or not visible');
+    if (!pos) throw new Error('贴图 menu not found or not visible');
 
-    console.log('[wechat-browser] Clicking "图文" menu with mouse events...');
+    console.log('[wechat-browser] Clicking "贴图" menu with mouse events...');
     await cdp.send('Input.dispatchMouseEvent', {
       type: 'mousePressed',
       x: pos.x,
@@ -533,10 +533,21 @@ export async function postToWeChat(options: WeChatBrowserOptions): Promise<void>
     console.log(`[wechat-browser] Images: ${absolutePaths.join(', ')}`);
 
     const { root } = await cdp.send<{ root: { nodeId: number } }>('DOM.getDocument', {}, { sessionId });
-    const { nodeId } = await cdp.send<{ nodeId: number }>('DOM.querySelector', {
+
+    // Try primary selector, then fallback to any multi-file image input
+    let { nodeId } = await cdp.send<{ nodeId: number }>('DOM.querySelector', {
       nodeId: root.nodeId,
       selector: '.js_upload_btn_container input[type=file]',
     }, { sessionId });
+
+    if (!nodeId) {
+      console.log('[wechat-browser] Primary file input not found, trying fallback selector...');
+      const fallback = await cdp.send<{ nodeId: number }>('DOM.querySelector', {
+        nodeId: root.nodeId,
+        selector: 'input[type=file][multiple][accept*="image"]',
+      }, { sessionId });
+      nodeId = fallback.nodeId;
+    }
 
     if (!nodeId) throw new Error('File input not found');
 
@@ -545,7 +556,30 @@ export async function postToWeChat(options: WeChatBrowserOptions): Promise<void>
       files: absolutePaths,
     }, { sessionId });
 
-    await sleep(1000);
+    // Dispatch change event to trigger the upload
+    await cdp.send('Runtime.evaluate', {
+      expression: `
+        const fileInput = document.querySelector('.js_upload_btn_container input[type=file]') || document.querySelector('input[type=file][multiple][accept*="image"]');
+        if (fileInput) fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+      `,
+    }, { sessionId });
+
+    // Wait for images to upload
+    console.log('[wechat-browser] Waiting for images to upload...');
+    const targetCount = absolutePaths.length;
+    for (let i = 0; i < 30; i++) {
+      await sleep(2000);
+      const uploadCheck = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+        expression: `
+          const thumbs = document.querySelectorAll('.weui-desktop-upload__thumb, .pic_item, [class*=upload_thumb]');
+          JSON.stringify({ uploaded: thumbs.length });
+        `,
+        returnByValue: true,
+      }, { sessionId });
+      const status = JSON.parse(uploadCheck.result.value);
+      console.log(`[wechat-browser] Upload progress: ${status.uploaded}/${targetCount}`);
+      if (status.uploaded >= targetCount) break;
+    }
 
     console.log('[wechat-browser] Filling title...');
     await cdp.send('Runtime.evaluate', {
@@ -561,73 +595,134 @@ export async function postToWeChat(options: WeChatBrowserOptions): Promise<void>
     }, { sessionId });
     await sleep(500);
 
-    console.log('[wechat-browser] Clicking on content editor...');
-    const editorPos = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+    console.log('[wechat-browser] Filling content...');
+    // Try ProseMirror editor first (new WeChat UI), then fallback to old editor
+    const contentResult = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
       expression: `
         (function() {
-          const editor = document.querySelector('.js_pmEditorArea');
-          if (editor) {
-            const rect = editor.getBoundingClientRect();
-            return JSON.stringify({ x: rect.x + 50, y: rect.y + 20 });
+          const contentHtml = ${JSON.stringify('<p>' + content.split('\n').filter(l => l.trim()).join('</p><p>') + '</p>')};
+
+          // New UI: ProseMirror contenteditable
+          const pm = document.querySelector('.ProseMirror[contenteditable=true]');
+          if (pm) {
+            pm.innerHTML = contentHtml;
+            pm.dispatchEvent(new Event('input', { bubbles: true }));
+            return 'ProseMirror: content set, length=' + pm.textContent.length;
           }
-          return 'null';
+
+          // Old UI: .js_pmEditorArea
+          const oldEditor = document.querySelector('.js_pmEditorArea');
+          if (oldEditor) {
+            return JSON.stringify({ type: 'old', x: oldEditor.getBoundingClientRect().x + 50, y: oldEditor.getBoundingClientRect().y + 20 });
+          }
+
+          return 'editor_not_found';
         })()
       `,
       returnByValue: true,
     }, { sessionId });
 
-    if (editorPos.result.value === 'null') throw new Error('Content editor not found');
-    const editorClickPos = JSON.parse(editorPos.result.value);
+    const contentStatus = contentResult.result.value;
+    console.log(`[wechat-browser] Content result: ${contentStatus}`);
 
-    await cdp.send('Input.dispatchMouseEvent', {
-      type: 'mousePressed',
-      x: editorClickPos.x,
-      y: editorClickPos.y,
-      button: 'left',
-      clickCount: 1,
-    }, { sessionId });
-    await sleep(50);
-    await cdp.send('Input.dispatchMouseEvent', {
-      type: 'mouseReleased',
-      x: editorClickPos.x,
-      y: editorClickPos.y,
-      button: 'left',
-      clickCount: 1,
-    }, { sessionId });
-    await sleep(300);
-
-    console.log('[wechat-browser] Typing content with keyboard simulation...');
-    const lines = content.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.length > 0) {
-        await cdp.send('Input.insertText', { text: line }, { sessionId });
-      }
-      if (i < lines.length - 1) {
-        await cdp.send('Input.dispatchKeyEvent', {
-          type: 'keyDown',
-          key: 'Enter',
-          code: 'Enter',
-          windowsVirtualKeyCode: 13,
-        }, { sessionId });
-        await cdp.send('Input.dispatchKeyEvent', {
-          type: 'keyUp',
-          key: 'Enter',
-          code: 'Enter',
-          windowsVirtualKeyCode: 13,
-        }, { sessionId });
-      }
-      await sleep(50);
+    if (contentStatus === 'editor_not_found') {
+      throw new Error('Content editor not found');
     }
-    console.log('[wechat-browser] Content typed.');
+
+    // Fallback: old editor uses keyboard simulation
+    if (contentStatus.startsWith('{')) {
+      const editorClickPos = JSON.parse(contentStatus);
+      if (editorClickPos.type === 'old') {
+        console.log('[wechat-browser] Using old editor with keyboard simulation...');
+        await cdp.send('Input.dispatchMouseEvent', {
+          type: 'mousePressed',
+          x: editorClickPos.x,
+          y: editorClickPos.y,
+          button: 'left',
+          clickCount: 1,
+        }, { sessionId });
+        await sleep(50);
+        await cdp.send('Input.dispatchMouseEvent', {
+          type: 'mouseReleased',
+          x: editorClickPos.x,
+          y: editorClickPos.y,
+          button: 'left',
+          clickCount: 1,
+        }, { sessionId });
+        await sleep(300);
+
+        const lines = content.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (line!.length > 0) {
+            await cdp.send('Input.insertText', { text: line }, { sessionId });
+          }
+          if (i < lines.length - 1) {
+            await cdp.send('Input.dispatchKeyEvent', {
+              type: 'keyDown',
+              key: 'Enter',
+              code: 'Enter',
+              windowsVirtualKeyCode: 13,
+            }, { sessionId });
+            await cdp.send('Input.dispatchKeyEvent', {
+              type: 'keyUp',
+              key: 'Enter',
+              code: 'Enter',
+              windowsVirtualKeyCode: 13,
+            }, { sessionId });
+          }
+          await sleep(50);
+        }
+        console.log('[wechat-browser] Content typed via keyboard.');
+      }
+    }
     await sleep(500);
 
     if (submit) {
       console.log('[wechat-browser] Saving as draft...');
-      await cdp.send('Runtime.evaluate', {
-        expression: `document.querySelector('#js_submit')?.click()`,
+      const submitResult = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+        expression: `
+          (function() {
+            // Try new UI: find button by text
+            const allBtns = document.querySelectorAll('button');
+            for (const btn of allBtns) {
+              const text = btn.textContent?.trim();
+              if (text === '保存为草稿') {
+                btn.click();
+                return 'clicked:保存为草稿';
+              }
+            }
+            // Fallback: old UI selector
+            const oldBtn = document.querySelector('#js_submit');
+            if (oldBtn) {
+              oldBtn.click();
+              return 'clicked:#js_submit';
+            }
+            // List available buttons for debugging
+            const btnTexts = [];
+            allBtns.forEach(b => {
+              const t = b.textContent?.trim();
+              if (t && t.length < 20) btnTexts.push(t);
+            });
+            return 'not_found:' + btnTexts.join(',');
+          })()
+        `,
+        returnByValue: true,
       }, { sessionId });
+      console.log(`[wechat-browser] Submit result: ${submitResult.result.value}`);
       await sleep(3000);
+
+      // Verify save success by checking for toast
+      const toastCheck = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+        expression: `
+          const toasts = document.querySelectorAll('.weui-desktop-toast, [class*=toast]');
+          const msgs = [];
+          toasts.forEach(t => { const text = t.textContent?.trim(); if (text) msgs.push(text); });
+          JSON.stringify(msgs);
+        `,
+        returnByValue: true,
+      }, { sessionId });
+      console.log(`[wechat-browser] Toast messages: ${toastCheck.result.value}`);
       console.log('[wechat-browser] Draft saved!');
     } else {
       console.log('[wechat-browser] Article composed (preview mode). Add --submit to save as draft.');
@@ -641,7 +736,7 @@ export async function postToWeChat(options: WeChatBrowserOptions): Promise<void>
 }
 
 function printUsage(): never {
-  console.log(`Post image-text (图文) to WeChat Official Account
+  console.log(`Post image-text (贴图) to WeChat Official Account
 
 Usage:
   npx -y bun wechat-browser.ts [options]
