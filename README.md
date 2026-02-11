@@ -73,7 +73,7 @@ creator/
 2. 优化内容（开头 hook、结尾栏目、DYOR、格式修正）
 3. 用户确认优化内容
 4. 生成配图（baoyu-article-illustrator）+ 水印处理原图
-5. 生成封面（baoyu-cover-image）+ X 平台 padding
+5. 生成封面（baoyu-cover-image）— Safe Zone 确保内容不贴边
 6. 上传所有图片到图床（innomad-image-upload）
 7. 输出完成报告
 ```
@@ -178,7 +178,7 @@ default_output_dir: imgs-subdir
 
 1. **缩放 + 阴影**：ImageMagick（`-resize`, `-shadow 80x12+0+6`, 白底）
 2. **水印**：Python Pillow 斜向平铺（`scripts/add_watermark.py`）
-3. **封面 padding**：ImageMagick 居中扩展 128%，保持 16:9（适配 X 裁切）
+3. **封面 Safe Zone**：通过 EXTEND.md prompt 指令确保核心内容在中心 70% 区域，无需后处理 padding
 4. **上传**：PicList → GitHub 图床 `imgs.innomad.io`
 
 注意：GitHub 图床不会覆盖同名文件。如需替换已上传的图片，必须重命名后上传。

@@ -406,28 +406,7 @@ fonts = [
 **输入**：优化后的文章路径
 **输出**：封面保存在 `posts/{slug}/cover.png`
 
-### 5.4 封面图 Padding 处理 ⚠️ REQUIRED
-
-X 平台会裁切封面图，内容贴边会被截断。生成封面后**必须**添加四周 padding：
-
-**处理步骤**：
-
-```bash
-# 1. 采样背景色（从左上角像素取色）
-BG_COLOR=$(magick cover.png -format "%[pixel:p{10,10}]" info:)
-
-# 2. 计算 16:9 padding 后的尺寸（四周各加 ~14% padding）
-# 原始宽度 × 1.28 = 新宽度，新高度 = 新宽度 × 9 / 16
-# 示例：2752x1536 → 3520x1980（左右各+384px，上下各+222px）
-
-# 3. 扩展画布，居中原图
-magick cover.png -gravity center -background "$BG_COLOR" -extent ${NEW_W}x${NEW_H} cover.png
-```
-
-**要点**：
-- 四周至少留 10-15% 的边距，确保 X 裁切后内容完整
-- 最终尺寸必须保持 **16:9** 比例
-- 背景色从原图角落采样，保证无缝衔接
+> **注意**：封面图已通过 EXTEND.md 的 Safe Zone 指令确保核心内容集中在画面中心 70% 区域、边缘自然过渡，无需后处理 padding。
 
 ### 5.5 跳过条件
 
@@ -437,7 +416,7 @@ magick cover.png -gravity center -background "$BG_COLOR" -extent ${NEW_W}x${NEW_
 
 ## Step 6: 上传图片到图床
 
-所有图片处理（配图生成、封面生成与 padding、原图水印）全部完成后，调用 `innomad-image-upload` 将文章中的所有本地图片上传到图床，并替换 markdown 中的引用路径为远程 URL。
+所有图片处理（配图生成、封面生成、原图水印）全部完成后，调用 `innomad-image-upload` 将文章中的所有本地图片上传到图床，并替换 markdown 中的引用路径为远程 URL。
 
 ### 6.1 加载 skill
 
@@ -453,7 +432,7 @@ test -f .agents/skills/innomad-image-upload/SKILL.md && echo "found"
 | 图片类型 | 来源 | 示例路径 |
 |----------|------|----------|
 | AI 生成配图 | baoyu-article-illustrator | `imgs/01-xxx.png` |
-| 封面图 | baoyu-cover-image（含 padding） | `cover.png` |
+| 封面图 | baoyu-cover-image（Safe Zone） | `cover.png` |
 | 原文配图（已处理） | 水印/缩放后的截图、照片 | `imgs/screenshot-xxx.png` |
 
 **不上传**：已经是远程 URL 的图片（`http://` / `https://` 开头）。
@@ -675,7 +654,7 @@ npx -y bun ${SKILL_DIR}/scripts/main.ts --promptfiles <prompt.md> --image <out.p
 - 读取 `.agents/skills/baoyu-cover-image/SKILL.md` 获取 5 维度配置流程
 - EXTEND.md 路径：`.baoyu-skills/baoyu-cover-image/EXTEND.md`
 - 图片生成最终调用上面的 baoyu-image-gen 命令
-- 封面生成后必须添加 padding（见 Step 5.4）
+- 封面已通过 EXTEND.md Safe Zone 指令确保内容不贴边，无需后处理 padding
 
 **innomad-image-upload**（图片上传）：
 ```bash

@@ -41,3 +41,19 @@ language: null
 #     decorative_hints: "Clean lines, geometric shapes"
 #     best_for: "Business, tech content"
 ---
+
+<!-- Safe Zone Rule — APPEND to every cover prompt's Composition section.
+
+## Safe Zone — MUST FOLLOW
+
+CRITICAL: All important visual content (title text, key icons, main visual elements, watermark) MUST stay within the center 70% of the canvas. The outer 15% margin on each side is a bleed zone — fill it with background color, subtle patterns, or decorative elements that naturally extend from the main composition, but place NO critical content there.
+
+This ensures the cover survives cropping by social platforms (X/Twitter, WeChat, etc.) without losing important information.
+
+Rules:
+- Title text: horizontally and vertically centered within the 70% safe area
+- Main visual elements: contained within or overlapping the safe area boundary
+- Background and decorative elements: freely extend to canvas edges
+- Do NOT create a visible border, frame, or distinct padding strip
+- The composition should look complete and intentional at full size
+-->
