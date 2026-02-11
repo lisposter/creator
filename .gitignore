@@ -435,3 +435,5 @@ posts
 
 .claude/*
 !.claude/settings.local.json
+
+.agents/UPSTREAM-SYNC.md

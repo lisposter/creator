@@ -23,7 +23,7 @@
 |------|------|
 | X (Twitter) | @innomad_io |
 | 微信公众号 | Innomad一挪迈 |
-| 小红书 | 一挪迈 |
+| 小红书 | Innomad一挪迈 |
 | 个人博客 | innomad.io |
 
 ### 品牌元素
