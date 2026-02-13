@@ -91,3 +91,17 @@
 - 中篇 1000-2000 字（分析/评测类，占多数）
 - 长篇 2000-4000 字（教程/深度类）
 - 每篇聚焦一个主题，不追求长篇大论
+
+---
+
+## Skills 安装规则
+
+- 所有 skill 统一安装到 `.agents/skills/` 目录下（`.claude/skills/` 是它的符号链接）
+- 每个 skill 一个子目录，目录名即 skill 名
+- 外部 skill 安装后需在此处记录来源
+
+### 已安装的外部 Skills
+
+| Skill | 来源 | 说明 |
+|-------|------|------|
+| twitter-algorithm-optimizer | [ComposioHQ/awesome-claude-skills](https://github.com/ComposioHQ/awesome-claude-skills/tree/master/twitter-algorithm-optimizer) | 基于 Twitter 开源算法优化推文，提升互动和曝光 |
