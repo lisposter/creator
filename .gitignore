@@ -433,6 +433,8 @@ id_ed25519.pub
 
 posts
 
+xhs-images/
+
 .claude/*
 !.claude/settings.local.json
 
