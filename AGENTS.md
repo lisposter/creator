@@ -104,4 +104,4 @@
 
 | Skill | 来源 | 说明 |
 |-------|------|------|
-| twitter-algorithm-optimizer | [ComposioHQ/awesome-claude-skills](https://github.com/ComposioHQ/awesome-claude-skills/tree/master/twitter-algorithm-optimizer) | 基于 Twitter 开源算法优化推文，提升互动和曝光 |
+| inm-x-optimizer | 自研（基于 xai-org/x-algorithm 源码分析） | 基于 X 开源推荐算法（Phoenix 系统）优化推文，提升互动和曝光 |
