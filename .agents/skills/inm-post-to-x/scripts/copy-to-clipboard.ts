@@ -377,4 +377,3 @@ await main().catch((err) => {
   console.error(`Error: ${message}`);
   process.exit(1);
 });
-

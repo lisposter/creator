@@ -1,16 +1,12 @@
 import fs from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
-import https from 'node:https';
-import http from 'node:http';
-import os from 'node:os';
+import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
-import { createHash } from 'node:crypto';
 
 interface ImageInfo {
   placeholder: string;
-  localPath: string;
   originalPath: string;
+  fileName: string;
   blockIndex: number;
 }
 
@@ -43,72 +39,18 @@ function parseFrontmatter(content: string): { frontmatter: Record<string, string
   return { frontmatter, body: match[2]! };
 }
 
-function downloadFile(url: string, destPath: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const protocol = url.startsWith('https') ? https : http;
-    const file = fs.createWriteStream(destPath);
-
-    const request = protocol.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (response) => {
-      if (response.statusCode === 301 || response.statusCode === 302) {
-        const redirectUrl = response.headers.location;
-        if (redirectUrl) {
-          file.close();
-          fs.unlinkSync(destPath);
-          downloadFile(redirectUrl, destPath).then(resolve).catch(reject);
-          return;
-        }
-      }
-
-      if (response.statusCode !== 200) {
-        file.close();
-        fs.unlinkSync(destPath);
-        reject(new Error(`Failed to download: ${response.statusCode}`));
-        return;
-      }
-
-      response.pipe(file);
-      file.on('finish', () => {
-        file.close();
-        resolve();
-      });
-    });
-
-    request.on('error', (err) => {
-      file.close();
-      fs.unlink(destPath, () => {});
-      reject(err);
-    });
-
-    request.setTimeout(30000, () => {
-      request.destroy();
-      reject(new Error('Download timeout'));
-    });
-  });
-}
-
-function getImageExtension(urlOrPath: string): string {
-  const match = urlOrPath.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i);
-  return match ? match[1]!.toLowerCase() : 'png';
-}
-
-async function resolveImagePath(imagePath: string, baseDir: string, tempDir: string): Promise<string> {
-  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-    const hash = createHash('md5').update(imagePath).digest('hex').slice(0, 8);
-    const ext = getImageExtension(imagePath);
-    const localPath = path.join(tempDir, `remote_${hash}.${ext}`);
-
-    if (!fs.existsSync(localPath)) {
-      console.error(`[md-to-html] Downloading: ${imagePath}`);
-      await downloadFile(imagePath, localPath);
-    }
-    return localPath;
+function getFileName(urlOrPath: string): string {
+  // Extract filename from URL or path
+  let name: string;
+  try {
+    const url = new URL(urlOrPath);
+    name = path.basename(url.pathname);
+  } catch {
+    name = path.basename(urlOrPath);
   }
-
-  if (path.isAbsolute(imagePath)) {
-    return imagePath;
-  }
-
-  return path.resolve(baseDir, imagePath);
+  // Remove query params if any
+  name = name.split('?')[0]!;
+  return name || 'image';
 }
 
 function escapeHtml(text: string): string {
@@ -161,7 +103,6 @@ function convertMarkdownToHtml(markdown: string, imageCallback: (src: string, al
     // Code block
     if (line.startsWith('```')) {
       if (inCodeBlock) {
-        // X doesn't support <pre><code>, convert to blockquote
         const codeContent = codeBlockContent.map((l) => escapeHtml(l)).join('<br>');
         blocks.push(`<blockquote>${codeContent}</blockquote>`);
         codeBlockContent = [];
@@ -254,103 +195,77 @@ function convertMarkdownToHtml(markdown: string, imageCallback: (src: string, al
   };
 }
 
-export async function parseMarkdown(
-  markdownPath: string,
-  options?: { coverImage?: string; title?: string; tempDir?: string },
-): Promise<ParsedMarkdown> {
+function parseMarkdown(markdownPath: string, options?: { coverImage?: string; title?: string }): ParsedMarkdown {
   const content = fs.readFileSync(markdownPath, 'utf-8');
-  const baseDir = path.dirname(markdownPath);
-  const tempDir = options?.tempDir ?? path.join(os.tmpdir(), 'x-article-images');
-
-  await mkdir(tempDir, { recursive: true });
-
   const { frontmatter, body } = parseFrontmatter(content);
 
-  // Extract title from frontmatter, option, or first H1
+  // Extract title
   let title = options?.title ?? frontmatter.title ?? '';
   if (!title) {
     const h1Match = body.match(/^#\s+(.+)$/m);
     if (h1Match) title = h1Match[1]!;
   }
 
-  // Extract cover image from frontmatter or option
-  let coverImagePath = options?.coverImage ?? frontmatter.cover_image ?? frontmatter.coverImage ?? frontmatter.cover ?? frontmatter.image ?? frontmatter.featureImage ?? frontmatter.feature_image ?? null;
+  // Extract cover image path (no download, just record path)
+  const coverImagePath = options?.coverImage ?? frontmatter.cover_image ?? frontmatter.coverImage ?? frontmatter.cover ?? frontmatter.image ?? frontmatter.featureImage ?? frontmatter.feature_image ?? null;
 
-  const images: Array<{ src: string; alt: string; blockIndex: number }> = [];
-  let imageCounter = 0;
+  const images: Array<{ src: string; alt: string }> = [];
 
   const { html, totalBlocks } = convertMarkdownToHtml(body, (src, alt) => {
-    const placeholder = `XIMGPH_${++imageCounter}`;
-    const currentBlockIndex = images.length; // Will be set properly after HTML generation
-
-    images.push({ src, alt, blockIndex: -1 }); // blockIndex set later
-    return placeholder;
+    images.push({ src, alt });
+    const fileName = getFileName(src);
+    return `【${fileName}】`;
   });
 
-  // Update block indices by finding placeholders in HTML
-  const htmlLines = html.split('\n');
-  let blockIdx = 0;
-  for (const line of htmlLines) {
-    for (let i = 0; i < images.length; i++) {
-      const placeholder = `XIMGPH_${i + 1}`;
-      if (line.includes(placeholder)) {
-        images[i]!.blockIndex = blockIdx;
-      }
-    }
-    blockIdx++;
-  }
-
-  // Resolve image paths (download remote, resolve relative)
+  // Build image info list (skip first image if it becomes cover)
   const contentImages: ImageInfo[] = [];
   let isFirstImage = true;
   let coverPlaceholder: string | null = null;
+  let resolvedCover = coverImagePath;
 
   for (let i = 0; i < images.length; i++) {
     const img = images[i]!;
-    const localPath = await resolveImagePath(img.src, baseDir, tempDir);
+    const fileName = getFileName(img.src);
 
-    // First image becomes cover if no cover specified
     if (isFirstImage && !coverImagePath) {
-      coverImagePath = localPath;
-      coverPlaceholder = `XIMGPH_${i + 1}`;
+      resolvedCover = img.src;
+      coverPlaceholder = `【${fileName}】`;
       isFirstImage = false;
-      // Don't add to contentImages, it's the cover
       continue;
     }
 
     isFirstImage = false;
     contentImages.push({
-      placeholder: `XIMGPH_${i + 1}`,
-      localPath,
+      placeholder: `【${fileName}】`,
       originalPath: img.src,
-      blockIndex: img.blockIndex,
+      fileName,
+      blockIndex: i,
     });
   }
 
-  // Remove cover placeholder from HTML if first image was used as cover
+  // Remove cover placeholder from HTML
   let finalHtml = html;
   if (coverPlaceholder) {
-    // Remove the placeholder and its containing <p> tag
-    finalHtml = finalHtml.replace(new RegExp(`<p>${coverPlaceholder}</p>\\n?`, 'g'), '');
-  }
-
-  // Resolve cover image path
-  let resolvedCoverImage: string | null = null;
-  if (coverImagePath) {
-    resolvedCoverImage = await resolveImagePath(coverImagePath, baseDir, tempDir);
+    finalHtml = finalHtml.replace(new RegExp(`<p>${escapeForRegex(coverPlaceholder)}</p>\\n?`, 'g'), '');
   }
 
   return {
     title,
-    coverImage: resolvedCoverImage,
+    coverImage: resolvedCover,
     contentImages,
     html: finalHtml,
     totalBlocks,
   };
 }
 
+function escapeForRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function printUsage(): never {
-  console.log(`Convert Markdown to HTML for X Article publishing
+  console.log(`Convert Markdown to HTML for X Article (manual publishing)
+
+Images are replaced with 【filename】 placeholders for manual insertion.
 
 Usage:
   npx -y bun md-to-html.ts <markdown_file> [options]
@@ -358,19 +273,11 @@ Usage:
 Options:
   --title <title>       Override title from frontmatter
   --cover <image>       Override cover image from frontmatter
-  --output <json|html>  Output format (default: json)
   --html-only           Output only the HTML content
   --save-html <path>    Save HTML to file
 
-Frontmatter fields:
-  title: Article title (or use first H1)
-  cover_image: Cover image path or URL
-  cover: Alias for cover_image
-  image: Alias for cover_image
-
 Example:
-  npx -y bun md-to-html.ts article.md --output json
-  npx -y bun md-to-html.ts article.md --html-only > /tmp/article.html
+  npx -y bun md-to-html.ts article.md
   npx -y bun md-to-html.ts article.md --save-html /tmp/article.html
 `);
   process.exit(0);
@@ -385,7 +292,6 @@ async function main(): Promise<void> {
   let markdownPath: string | undefined;
   let title: string | undefined;
   let coverImage: string | undefined;
-  let outputFormat: 'json' | 'html' = 'json';
   let htmlOnly = false;
   let saveHtmlPath: string | undefined;
 
@@ -395,8 +301,6 @@ async function main(): Promise<void> {
       title = args[++i];
     } else if (arg === '--cover' && args[i + 1]) {
       coverImage = args[++i];
-    } else if (arg === '--output' && args[i + 1]) {
-      outputFormat = args[++i] as 'json' | 'html';
     } else if (arg === '--html-only') {
       htmlOnly = true;
     } else if (arg === '--save-html' && args[i + 1]) {
@@ -416,7 +320,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const result = await parseMarkdown(markdownPath, { title, coverImage });
+  const result = parseMarkdown(markdownPath, { title, coverImage });
 
   if (saveHtmlPath) {
     await writeFile(saveHtmlPath, result.html, 'utf-8');
@@ -425,10 +329,25 @@ async function main(): Promise<void> {
 
   if (htmlOnly) {
     console.log(result.html);
-  } else if (outputFormat === 'html') {
-    console.log(result.html);
   } else {
-    console.log(JSON.stringify(result, null, 2));
+    // Output structured info
+    console.log(`📄 标题: ${result.title}`);
+    console.log(`🖼️ 封面: ${result.coverImage ?? '（无）'}`);
+
+    if (result.contentImages.length > 0) {
+      console.log(`\n📸 图片占位符 (${result.contentImages.length} 张):`);
+      for (const img of result.contentImages) {
+        console.log(`   ${img.placeholder} → ${img.originalPath}`);
+      }
+    } else {
+      console.log('\n📸 图片: 无');
+    }
+
+    console.log(`\n📊 总段落: ${result.totalBlocks}`);
+
+    if (saveHtmlPath) {
+      console.log(`\n✅ HTML 已保存到: ${saveHtmlPath}`);
+    }
   }
 }
 
