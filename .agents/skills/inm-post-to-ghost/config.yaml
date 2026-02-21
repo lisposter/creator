@@ -1,0 +1,47 @@
+# inm-post-to-ghost 配置
+# Ghost 发布工具配置文件
+
+# 文章源目录（相对于项目根目录）
+source_dir: data/obsidian/20-Workbench
+
+# 发布后归档目录（相对于项目根目录）
+target_dir: data/obsidian/30-Blog/innomad.io
+
+# 默认字段值（frontmatter 中未指定时使用）
+defaults:
+  status: draft          # draft | published
+  visibility: public     # public | members | paid | tiers
+  type: Post             # Post | Page
+  featured: false
+  category: ""
+  tags: []
+  tiers: []
+
+# 可用的 tags 列表（用于校验和提示）
+available_tags:
+  - ETF
+  - 思考
+  - IBKR
+  - 美股
+  - 理财
+  - AI
+  - 数字游民
+  - 投资工具
+  - 期权
+
+# 可用的 category 列表
+available_categories:
+  - Finance
+  - Tech
+  - Nomad
+  - Life
+
+# Ghost 内容配置
+ghost:
+  # 图片域名替换（CDN 优化）
+  asset_domain_from: gh.assets.innomad.io
+  asset_domain_to: imgs.innomad.io
+  # 默认封面图
+  default_feature_image: https://imgs.innomad.io/blog/hello-innomad_cover.png
+  # 封面图 URL 模板（{slug} 会被替换为文章 slug）
+  cover_image_template: "https://imgs.innomad.io/blog/{slug}_cover.png"
