@@ -2,7 +2,7 @@
 # Ghost 发布工具配置文件
 
 # 文章源目录（相对于项目根目录）
-source_dir: data/obsidian/20-Workbench
+source_dir: data/obsidian/20-Workbench/Drafts
 
 # 发布后归档目录（相对于项目根目录）
 target_dir: data/obsidian/30-Blog/innomad.io

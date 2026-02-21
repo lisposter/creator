@@ -614,7 +614,7 @@ async function publishArticle(
   client: GhostClient | null,
   config: Config,
   options: { force?: boolean; dryRun?: boolean; statusOverride?: string }
-): Promise<{ slug: string; action: string; error?: string }> {
+): Promise<{ slug: string; title: string; action: string; error?: string }> {
   const article = parseArticle(filePath);
   const postData = buildGhostPostData(article, config);
 
@@ -639,12 +639,12 @@ async function publishArticle(
 
   if (options.dryRun) {
     console.log(`   🔍 DRY RUN — skipping actual publish`);
-    return { slug: postData.slug, action: "dry-run" };
+    return { slug: postData.slug, title: postData.title, action: "dry-run" };
   }
 
   if (!client) {
     console.log(`   ❌ No Ghost client (missing env vars)`);
-    return { slug: postData.slug, action: "failed", error: "No Ghost client" };
+    return { slug: postData.slug, title: postData.title, action: "failed", error: "No Ghost client" };
   }
 
   try {
@@ -656,7 +656,7 @@ async function publishArticle(
     if (existing) {
       if (!options.force) {
         console.log(`   ⏭️  Already exists, use --force to update`);
-        return { slug: postData.slug, action: "skipped" };
+        return { slug: postData.slug, title: postData.title, action: "skipped" };
       }
 
       // Update
@@ -667,7 +667,7 @@ async function publishArticle(
         await client.updatePost(existing.id as string, updateData);
       }
       console.log(`   ✅ Updated successfully`);
-      return { slug: postData.slug, action: "updated" };
+      return { slug: postData.slug, title: postData.title, action: "updated" };
     } else {
       // Create
       if (isPage) {
@@ -676,12 +676,12 @@ async function publishArticle(
         await client.createPost(postData);
       }
       console.log(`   ✅ Created successfully`);
-      return { slug: postData.slug, action: "created" };
+      return { slug: postData.slug, title: postData.title, action: "created" };
     }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     console.log(`   ❌ Failed: ${errMsg}`);
-    return { slug: postData.slug, action: "failed", error: errMsg };
+    return { slug: postData.slug, title: postData.title, action: "failed", error: errMsg };
   }
 }
 
@@ -778,7 +778,7 @@ async function main() {
 
     console.log(`Found ${articles.length} articles to process\n`);
 
-    const results: { slug: string; action: string; error?: string; filePath: string }[] = [];
+    const results: { slug: string; title: string; action: string; error?: string; filePath: string }[] = [];
     for (const f of articles) {
       const result = await publishArticle(f, client, config, {
         force: flags.force,
@@ -812,10 +812,11 @@ async function main() {
         }
         console.log(`\n📦 Moving ${successResults.length} files to ${path.relative(projectRoot, targetDir)}:`);
         for (const r of successResults) {
-          const dest = path.join(targetDir, path.basename(r.filePath));
+          const safeTitle = r.title.replace(/[\/:*?"<>|]/g, "-");
+          const dest = path.join(targetDir, `${safeTitle}.md`);
           try {
             fs.renameSync(r.filePath, dest);
-            console.log(`   ✅ ${path.basename(r.filePath)}`);
+            console.log(`   ✅ ${safeTitle}.md`);
           } catch (err) {
             const errMsg = err instanceof Error ? err.message : String(err);
             console.error(`   ❌ ${path.basename(r.filePath)}: ${errMsg}`);
@@ -850,7 +851,8 @@ async function main() {
 
   // Move file after successful publish
   if (result.action === "created" || result.action === "updated") {
-    const targetPath = path.join(targetDir, path.basename(filePath));
+    const safeTitle = result.title.replace(/[\/:*?"<>|]/g, "-");
+    const targetPath = path.join(targetDir, `${safeTitle}.md`);
     const relSource = path.relative(projectRoot, filePath);
     const relTarget = path.relative(projectRoot, targetPath);
 
