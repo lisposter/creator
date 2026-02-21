@@ -25,12 +25,14 @@ description: 将本地 Markdown 文章发布到 Ghost CMS。读取 frontmatter �
 
 ## 环境变量
 
+环境变量从 `.innomad-skills/.env` 文件自动加载（Shell 环境变量优先级更高，会覆盖 `.env` 中的值）。
+
 | 变量 | 说明 | 示例 |
 |------|------|------|
 | `GHOST_ADMIN_API_URL` | Ghost 站点 URL | `https://innomad.io` |
 | `GHOST_ADMIN_API_KEY` | Ghost Admin API Key（格式 `id:secret`） | `64f8...a3:b7c9...f1` |
 
-Agent 在执行前需确认这两个环境变量已设置。可通过 `echo $GHOST_ADMIN_API_URL` 检查。
+`.env` 文件模板见 `.innomad-skills/.env.example`。Agent 在执行前需确认环境变量可用（`.env` 文件存在或 Shell 中已设置）。
 
 ## 使用方式
 

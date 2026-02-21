@@ -12,7 +12,7 @@
  *   bun post-to-ghost.ts --list                         # 列出源目录下的文章
  *   bun post-to-ghost.ts --sync                         # 同步源目录下所有文章
  * 
- * Environment variables:
+ * Environment variables (loaded from .innomad-skills/.env, shell env overrides):
  *   GHOST_ADMIN_API_URL  - Ghost Admin API URL (e.g. https://innomad.io)
  *   GHOST_ADMIN_API_KEY  - Ghost Admin API Key (format: id:secret)
  */
@@ -302,6 +302,41 @@ function generateSlug(text: string): string {
     .replace(/[\s_]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .substring(0, 60);
+}
+
+// ─── .env File Loader ────────────────────────────────────────────
+
+/**
+ * Load environment variables from .innomad-skills/.env file.
+ * Shell environment variables take precedence (will NOT be overwritten).
+ */
+function loadEnvFile(projectRoot: string): void {
+  const envPath = path.join(projectRoot, ".innomad-skills", ".env");
+  if (!fs.existsSync(envPath)) return;
+
+  const content = fs.readFileSync(envPath, "utf-8");
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    // Skip empty lines and comments
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    const eqIndex = trimmed.indexOf("=");
+    if (eqIndex === -1) continue;
+
+    const key = trimmed.slice(0, eqIndex).trim();
+    let value = trimmed.slice(eqIndex + 1).trim();
+
+    // Remove surrounding quotes (single or double)
+    if ((value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+
+    // Shell env takes precedence — don't overwrite existing
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
 }
 
 // ─── Ghost JWT Token ─────────────────────────────────────────────
@@ -661,6 +696,9 @@ async function main() {
   // Project root: .agents/skills/inm-post-to-ghost -> go up 3 levels
   const projectRoot = path.resolve(skillDir, "../../..");
 
+  // Load .env from .innomad-skills/.env (shell env takes precedence)
+  loadEnvFile(projectRoot);
+
   // Load config
   const config = loadConfig(skillDir);
   const sourceDir = path.resolve(projectRoot, config.source_dir);
@@ -711,7 +749,7 @@ async function main() {
     console.error("❌ Missing environment variables:");
     if (!ghostUrl) console.error("   GHOST_ADMIN_API_URL");
     if (!ghostKey) console.error("   GHOST_ADMIN_API_KEY");
-    console.error("\nSet them in your shell or .env file.");
+    console.error("\nSet them in .innomad-skills/.env or as shell environment variables.");
     process.exit(1);
   }
 
