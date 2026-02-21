@@ -12,7 +12,7 @@
  *   bun post-to-ghost.ts --list                         # 列出源目录下的文章
  *   bun post-to-ghost.ts --sync                         # 同步源目录下所有文章
  * 
- * Environment variables (loaded from .innomad-skills/.env, shell env overrides):
+ * Environment variables (loaded from .innomad-skills/inm-post-to-ghost/.env, shell env overrides):
  *   GHOST_ADMIN_API_URL  - Ghost Admin API URL (e.g. https://innomad.io)
  *   GHOST_ADMIN_API_KEY  - Ghost Admin API Key (format: id:secret)
  */
@@ -311,7 +311,7 @@ function generateSlug(text: string): string {
  * Shell environment variables take precedence (will NOT be overwritten).
  */
 function loadEnvFile(projectRoot: string): void {
-  const envPath = path.join(projectRoot, ".innomad-skills", ".env");
+  const envPath = path.join(projectRoot, ".innomad-skills", "inm-post-to-ghost", ".env");
   if (!fs.existsSync(envPath)) return;
 
   const content = fs.readFileSync(envPath, "utf-8");
@@ -749,7 +749,7 @@ async function main() {
     console.error("❌ Missing environment variables:");
     if (!ghostUrl) console.error("   GHOST_ADMIN_API_URL");
     if (!ghostKey) console.error("   GHOST_ADMIN_API_KEY");
-    console.error("\nSet them in .innomad-skills/.env or as shell environment variables.");
+    console.error("\nSet them in .innomad-skills/inm-post-to-ghost/.env or as shell environment variables.");
     process.exit(1);
   }
 
