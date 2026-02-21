@@ -109,6 +109,20 @@ npx -y bun ${SKILL_DIR}/scripts/post-to-ghost.ts --sync --dry-run
 本地 Markdown 文件
     │
     ▼
+【Agent】检查 Frontmatter
+    ├─ 必填字段是否完整？
+    ├─ 推荐字段是否缺失？
+    └─ 生成建议值，向用户报告
+    │
+    ▼
+【Agent】补全 Frontmatter
+    └─ 用户确认后写入文件
+    │
+    ▼
+【Agent】确认发布
+    └─ 用户明确确认后才继续
+    │
+    ▼
 解析 Frontmatter（提取 slug、tags 等）
     │
     ▼
@@ -123,11 +137,69 @@ Ghost Admin API
     └─ 文章已存在 → 更新（PUT /posts/{id}/）或跳过
     │
     ▼
-发布成功后（可选 --move）
+【Agent】询问是否归档
     └─ 移动文件到 target_dir（默认 30-Blog/innomad.io）
 ```
 
 ## Agent 行为指南
+
+### 发布前：Frontmatter 检查与补全（必须执行）
+
+在执行发布命令之前，Agent **必须**完成以下步骤：
+
+#### Step 1: 读取文章并检查 Frontmatter
+
+读取目标 `.md` 文件，解析 frontmatter，逐一检查以下必要字段是否存在且合理：
+
+| 字段 | 必要性 | 检查规则 |
+|------|--------|----------|
+| `title` | **必填** | 不能为空；若缺失，从 H1 或文件名提取并建议 |
+| `slug` | **必填** | 不能为空；若缺失，根据 title 自动生成并建议 |
+| `date` | **必填** | 格式为 `YYYY-MM-DD`；若缺失，建议使用当天日期 |
+| `cover_image` | **必填** | 应为有效 URL；若缺失，建议使用 `config.yaml` 中的模板或默认封面 |
+| `tags` | 推荐 | 至少 1 个标签；从 `config.yaml` 的 `available_tags` 中建议 |
+| `category` | 推荐 | 从 `config.yaml` 的 `available_categories` 中建议 |
+| `summary` | 推荐 | 若为空，根据文章内容生成一句话摘要（≤300 字符） |
+| `status` | 可选 | 默认 `draft`，确认用户意图 |
+| `type` | 可选 | 默认 `Post`，通常无需修改 |
+| `featured` | 可选 | 默认 `false` |
+| `visibility` | 可选 | 默认 `public` |
+| `tiers` | 可选 | 默认 `[]` |
+
+#### Step 2: 向用户报告并补全
+
+将检查结果向用户展示，格式示例：
+
+```
+📋 Frontmatter 检查结果：
+  ✅ title: 如何购买 ETF
+  ✅ slug: how-to-buy-etf
+  ✅ date: 2026-02-21
+  ✅ cover_image: https://imgs.innomad.io/blog/how-to-buy-etf_cover.png
+  ✅ tags: [ETF, 理财]
+  ✅ category: Finance
+  ⚠️ summary: (缺失，建议: "手把手教你通过券商购买第一只 ETF...")
+
+  需要补充/修改的字段：
+  1. summary → 建议值: "..."
+```
+
+- 对于缺失的**必填**字段，Agent 应主动生成建议值
+- 对于缺失的**推荐**字段，Agent 应根据文章内容智能推荐
+- 询问用户是否接受建议值，或由用户提供自定义值
+
+#### Step 3: 写入 Frontmatter
+
+用户确认后，将补全/修改后的字段写入文件的 frontmatter 中。
+
+#### Step 4: 确认发布
+
+在实际执行发布命令前，**必须向用户确认**：
+- 展示将要发布的关键信息（标题、slug、状态、标签）
+- 明确询问「确认发布到 Ghost 吗？」
+- 用户确认后才执行发布命令
+
+### 发布后：归档确认
 
 发布成功后，**必须询问用户是否要将文件移动到归档目录**（`target_dir`）。如果用户确认，再执行带 `--move` 的命令或直接 `mv` 移动文件。
 
