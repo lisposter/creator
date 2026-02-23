@@ -331,7 +331,7 @@ diff -u posts/{slug}/article-original.md posts/{slug}/article.md --label "原文
 用户确认后，优化后的文章保存到新文件，保留原文件不动：
 
 ```
-输入: data/obsidian/01/原文章.md
+输入: data/obsidian/01-Drafts/原文章.md
 输出: posts/{slug}/article.md
 ```
 
@@ -664,7 +664,7 @@ autoUpload: true
 用户: /innomad-article-optimizer AI投资新手指南
 
 Agent:
-1. 在 data/obsidian/01/ 找到 "AI投资新手指南.md"
+1. 在 data/obsidian/01-Drafts/ 找到 "AI投资新手指南.md"
 2. 优化开头：添加提问式引入
 3. 优化结尾：添加互动引导 + DYOR 声明
 4. 展示对比，等待用户确认
