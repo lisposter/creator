@@ -140,7 +140,7 @@ Ghost Admin API
     │
     ▼
 【Agent】询问是否归档
-    └─ 移动文件到 target_dir（默认 30-Blog/innomad.io）
+    └─ 移动文件到 target_dir（默认 30-Outputs/innomad.io）
 ```
 
 ## Agent 行为指南

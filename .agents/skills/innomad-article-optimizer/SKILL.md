@@ -1,6 +1,6 @@
 ---
 name: innomad-article-optimizer
-description: 优化 Obsidian 文章并为社交媒体传播做准备。从 data/obsidian 的 00-Inbox 或 30-Blog 查找文章，优化内容使其更适合 X 平台传播，保留原有文风，调整开头和结尾，添加 DYOR 免责声明，然后调用 baoyu-article-illustrator 配图、baoyu-cover-image 生成封面，最后调用 innomad-image-upload 上传所有本地图片并替换为远程 URL。
+description: 优化 Obsidian 文章并为社交媒体传播做准备。从 data/obsidian 的 01-Drafts 或 30-Outputs 查找文章，优化内容使其更适合 X 平台传播，保留原有文风，调整开头和结尾，添加 DYOR 免责声明，然后调用 baoyu-article-illustrator 配图、baoyu-cover-image 生成封面，最后调用 innomad-image-upload 上传所有本地图片并替换为远程 URL。
 ---
 
 # 文章优化器 (Article Optimizer)
@@ -49,8 +49,8 @@ Progress:
 
 ```bash
 # 搜索顺序（优先级从高到低）
-data/obsidian/00-Inbox/
-data/obsidian/30-Blog/
+data/obsidian/01-Drafts/
+data/obsidian/30-Outputs/
 data/obsidian/           # 递归搜索整个目录
 ```
 
@@ -66,7 +66,7 @@ data/obsidian/           # 递归搜索整个目录
 
 ```bash
 # 精确匹配
-find data/obsidian/00-Inbox data/obsidian/30-Blog -name "*${ARTICLE_NAME}*.md" 2>/dev/null | head -10
+find data/obsidian/01-Drafts/ data/obsidian/30-Outputs/ -name "*${ARTICLE_NAME}*.md" 2>/dev/null | head -10
 
 # 如果没找到，扩展搜索
 find data/obsidian -name "*${ARTICLE_NAME}*.md" 2>/dev/null | head -10
@@ -75,7 +75,7 @@ find data/obsidian -name "*${ARTICLE_NAME}*.md" 2>/dev/null | head -10
 ### 1.4 未找到处理
 
 如果未找到文章：
-1. 列出 `00-Inbox` 和 `30-Blog` 中的所有 `.md` 文件
+1. 列出 `01-Drafts` 和 `30-Outputs` 中的所有 `.md` 文件
 2. 使用 AskUserQuestion 让用户选择或重新输入
 
 ### 1.5 前置确认：水印选项 ⚠️ REQUIRED
@@ -331,7 +331,7 @@ diff -u posts/{slug}/article-original.md posts/{slug}/article.md --label "原文
 用户确认后，优化后的文章保存到新文件，保留原文件不动：
 
 ```
-输入: data/obsidian/00-Inbox/原文章.md
+输入: data/obsidian/01/原文章.md
 输出: posts/{slug}/article.md
 ```
 
@@ -664,7 +664,7 @@ autoUpload: true
 用户: /innomad-article-optimizer AI投资新手指南
 
 Agent:
-1. 在 data/obsidian/00-Inbox/ 找到 "AI投资新手指南.md"
+1. 在 data/obsidian/01/ 找到 "AI投资新手指南.md"
 2. 优化开头：添加提问式引入
 3. 优化结尾：添加互动引导 + DYOR 声明
 4. 展示对比，等待用户确认
