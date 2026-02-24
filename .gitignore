@@ -439,3 +439,7 @@ xhs-images/
 !.claude/settings.local.json
 
 .agents/UPSTREAM-SYNC.md
+
+bun.lock
+cover-image/
+package.json
