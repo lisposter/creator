@@ -120,6 +120,8 @@ test -d posts/{slug} && echo "exists"
 
 ## Step 2: 优化内容
 
+> **⚠️ 前置读取**：优化前必须先读取 `references/writing-style.md`（相对于本 SKILL.md），掌握一挪迈的完整写作风格，确保优化后的内容符合文风。
+
 ### 2.1 优化原则
 
 | 原则 | 描述 |
