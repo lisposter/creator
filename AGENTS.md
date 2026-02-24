@@ -6,6 +6,7 @@
 ## MUST NOT DO
 - 不要生成任何多余的文档
 - 禁止编辑、改动、删除 /data/obsidian/30-Blog 目录下的任何文件
+- 禁止在 data/obsidian/ 目录下生成非 .md 文件（如 .html、.txt 等）
 
 ---
 
