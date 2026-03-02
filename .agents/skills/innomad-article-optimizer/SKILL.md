@@ -143,7 +143,8 @@ test -d posts/{slug} && echo "exists"
 |------|------|
 | **保留文风** | 严格遵循 `references/writing-style-guide.md` 中定义的语调、结构、论证风格 |
 | **保留图片** | 保留原文中所有图片引用，位置和格式不变 |
-| **标题层级** | 段落标题从二级标题（`##`）开始，一级标题（`#`）仅用于文章主标题 |
+| **不生成一级标题** | 文章正文不生成 `#` 一级标题，标题由 frontmatter 的 `title` 字段提供，段落标题从 `##` 开始 |
+| **保留段落结构** | 不合并段落，不压缩空行，保持原文的段落间距和呼吸感 |
 | **微调开头** | 按 2.2 指南优化，增加钩子感 |
 | **优化结尾** | 按 2.3 指南优化，金句收束 + 留白 |
 | **免责声明** | 投资类文章添加 DYOR（见 2.7） |
@@ -227,18 +228,9 @@ test -d posts/{slug} && echo "exists"
 
 ### 2.6 标题层级调整
 
-如果原文的段落标题使用了一级标题（`#`），需要整体降级：
+文章正文**不生成一级标题 `#`**，标题由 frontmatter 的 `slug` + 发布平台提供。
 
-| 原层级 | 调整后 |
-|--------|--------|
-| `#` 段落标题 | `##` |
-| `##` 子标题 | `###` |
-| `###` 小标题 | `####` |
-
-**规则**：
-- 一级标题 `#` 仅保留给文章主标题（即文章名称）
-- 正文中的所有段落标题从 `##` 开始
-- 如果原文已经从 `##` 开始，则无需调整
+如果原文段落标题使用了 `#`，整体降级：`#` → `##`，`##` → `###`，以此类推。已从 `##` 开始则无需调整。
 
 ### 2.7 DYOR 免责声明（条件性）
 
@@ -307,32 +299,38 @@ test -d posts/{slug} && echo "exists"
 
 ### 2.10 Frontmatter 与摘要生成 ⚠️ REQUIRED
 
-优化完成后，为 `article.md` 生成 YAML frontmatter：
+优化完成后，为 `article.md` 生成 YAML frontmatter（格式与 Ghost CMS 对齐）：
 
 ```yaml
 ---
-title: "{用户在 Step 1 选定的标题}"
+base: "[[00-Index.base]]"
+cover_image: ""  # Step 6 上传后回填
+date: {YYYY-MM-DD}
+type: Post
+password: ""
 slug: "{kebab-case-slug}"
-date: "{YYYY-MM-DD}"
+featured: false
 tags:
   - "{tag1}"
   - "{tag2}"
-  - "{tag3}"
-excerpt: "{2-3 句话的文章摘要，用于 Ghost/微信/X 分享}"
-cover: ""  # Step 6 上传后回填
-cover_image: ""  # 同上
+tiers: []
+summary: "{2-3 句话的文章摘要}"
+category: "{Finance|Tech|Life}"
+status: Published
 ---
 ```
 
+**注意**：文章正文不生成 `#` 一级标题，标题由 Ghost 从 frontmatter 或发布时读取。
+
 **Tags 生成规则**：
-- 从文章内容自动提取 3-5 个标签
+- 从文章内容自动提取 2-5 个标签
 - 优先使用已有系列标签：`ETF开箱`、`投资理财`、`IBKR实操`、`AI工具`、`数字游民`
 - 英文术语保留原文：`ETF`、`FIRE`、`IBKR` 等
 
-**Excerpt 生成规则**：
+**Summary 生成规则**：
 - 2-3 句话，概括文章核心内容
 - 符合一挪迈文风（口语化但不粗糙）
-- 可用于 Ghost 摘要、微信公众号摘要、X 分享文案
+- 用于 Ghost 摘要、微信公众号摘要、X 分享文案
 
 ---
 
