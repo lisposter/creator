@@ -315,7 +315,7 @@ tags:
   - "{tag2}"
 tiers: []
 summary: "{2-3 句话的文章摘要}"
-category: "{Finance|Tech|Life}"
+category: "{Finance|Tech|Nomad}"
 status: Published
 ---
 ```
