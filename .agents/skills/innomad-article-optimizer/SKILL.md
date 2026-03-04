@@ -41,6 +41,24 @@ Progress:
 
 **交互点**：仅 2 次中断——Step 1（前置配置）和 Step 3（确认修改），其余步骤自动执行。
 
+### Shell 命令规范 ⚠️ REQUIRED
+
+> **始终使用绝对路径**：Shell 工具的工作目录（CWD）在命令间持久化，一次 `cd` 会影响所有后续命令的相对路径解析。
+>
+> - **禁止**在命令中使用 `cd` 切换目录后再用相对路径操作文件
+> - **必须**使用绝对路径或基于变量的路径，确保不依赖 CWD 状态
+>
+> ```bash
+> # ✅ 正确：使用绝对路径
+> BASE="/Users/leigh/Lab/creator/posts/{slug}"
+> diff -u "${BASE}/article-original.md" "${BASE}/article.md"
+> magick "${BASE}/imgs/original-screenshots/img_1.png" ...
+>
+> # ❌ 错误：cd 后使用相对路径，后续命令 CWD 状态不可预测
+> cd posts/{slug} && diff -u article-original.md article.md
+> # 此后所有命令的 CWD 都变了，相对路径可能指向错误位置
+> ```
+
 ---
 
 ## Step 1: 查找文章
@@ -346,7 +364,8 @@ status: Published
 保存优化后的文章到 `posts/{slug}/article.md` 后，使用 `diff -u` 命令生成原文与优化版的对比：
 
 ```bash
-diff -u posts/{slug}/article-original.md posts/{slug}/article.md --label "原文" --label "优化后"
+BASE="/Users/leigh/Lab/creator/posts/{slug}"
+diff -u "${BASE}/article-original.md" "${BASE}/article.md" --label "原文" --label "优化后"
 ```
 
 ### 3.1 展示修改
@@ -450,9 +469,8 @@ diff -u posts/{slug}/article-original.md posts/{slug}/article.md --label "原文
 调用方式：
 
 ```bash
-# SKILL_DIR 为本 skill 的目录路径
-SKILL_DIR=".agents/skills/innomad-article-optimizer"
-python3 ${SKILL_DIR}/scripts/add_watermark.py <input.png> <output.png>
+SKILL_DIR="/Users/leigh/Lab/creator/.agents/skills/innomad-article-optimizer"
+python3 "${SKILL_DIR}/scripts/add_watermark.py" <input.png> <output.png>
 ```
 
 脚本内置参数（如需修改请直接编辑脚本）：
@@ -468,15 +486,22 @@ python3 ${SKILL_DIR}/scripts/add_watermark.py <input.png> <output.png>
 
 > **注意**：此脚本为本 skill 内置的统一水印脚本，无需在项目根目录或其他位置创建。`posts/` 子目录下的旧副本为过期版本，应忽略。
 
-**处理步骤**：
-1. 下载/复制原图到 `posts/{slug}/imgs/` 并备份到 `imgs/original-screenshots/`
+**处理步骤**（所有路径必须使用绝对路径，参见 Shell 命令规范）：
+
+```bash
+# 定义基础路径变量，后续所有命令复用
+BASE="/Users/leigh/Lab/creator/posts/{slug}"
+SKILL_DIR="/Users/leigh/Lab/creator/.agents/skills/innomad-article-optimizer"
+```
+
+1. 下载/复制原图到 `${BASE}/imgs/` 并备份到 `${BASE}/imgs/original-screenshots/`
 2. 用 ImageMagick 缩放到 2/3 宽度 + 白色背景居中 + box-shadow 阴影效果
 3. 用 Python Pillow 添加斜向平铺水印
 4. 更新文章中的图片引用为本地处理后的路径
 
 **批量替换图片路径**：
 - 处理完所有图片后，使用 Edit 工具的 `replace_all=true` 一次性替换所有相同前缀的路径
-- 或使用 Bash `sed -i '' 's|old-prefix|new-prefix|g' article.md` 批量替换
+- 或使用 Bash `sed -i '' 's|old-prefix|new-prefix|g' "${BASE}/article.md"` 批量替换
 - **禁止逐个文件逐个路径调用 Edit**——这会浪费大量 token。如果有 6 张图片需要从 `v1` 改为 `v2`，应用一条 sed 命令或按前缀分组使用 `replace_all`
 
 ### 4.4 跳过条件
