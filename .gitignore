@@ -437,5 +437,6 @@ xhs-images/
 
 .claude/*
 !.claude/settings.local.json
+!.claude/skills
 
 .agents/UPSTREAM-SYNC.md
