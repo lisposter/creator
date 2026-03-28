@@ -143,6 +143,15 @@ Ghost Admin API
     └─ 移动文件到 target_dir（默认 30-Outputs/innomad.io）
 ```
 
+## 发布后操作
+
+发布成功后，自动更新源文章 frontmatter：
+
+1. 确保 `platforms` 数组中包含 `ghost`（不重复追加）
+2. 将 `status` 设为 `published`
+
+使用 Read 读取源文件 → 修改 frontmatter → Edit 回写。
+
 ## Agent 行为指南
 
 ### 发布前：Frontmatter 检查与补全（必须执行）
