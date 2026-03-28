@@ -37,6 +37,18 @@ npx -y bun ${SKILL_DIR}/scripts/copy-to-clipboard.ts html --file /tmp/x-article.
 - 图片占位符列表及对应文件路径
 - 富文本已复制到剪贴板的确认
 
+### 输入文件
+
+优先使用 `/inm-distribute` 生成的 X 平台版本：
+
+```bash
+# 推荐：使用 distribute 生成的 X 版本
+npx -y bun ${SKILL_DIR}/scripts/md-to-html.ts ${PROJECT_ROOT}/posts/{slug}/platforms/x.md --save-html /tmp/x-article.html
+
+# 也支持直接使用源文章
+npx -y bun ${SKILL_DIR}/scripts/md-to-html.ts /path/to/article.md --save-html /tmp/x-article.html
+```
+
 ### 短推文
 
 短推文不需要脚本，直接构思文案即可。
@@ -96,6 +108,15 @@ copy-to-clipboard.ts（复制）
 |------|------|
 | `title` | 文章标题（或取第一个 H1） |
 | `cover_image` / `cover` | 封面图路径或 URL |
+
+## 发布后操作
+
+发布成功后（用户确认已在 X 上发布），更新源文章 frontmatter：
+
+1. 确保 `platforms` 数组中包含 `x`（不重复追加）
+2. 源文章路径：`data/obsidian/30-Outputs/posts/` 中对应的文件（通过 slug 匹配）
+
+使用 Read 读取源文件 → 修改 frontmatter → Edit 回写。
 
 ## 注意事项
 
