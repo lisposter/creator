@@ -3,6 +3,14 @@ name: innomad-article-optimizer
 description: 优化 Obsidian 文章并为社交媒体传播做准备。从 data/obsidian 的 01-Drafts 或 30-Outputs 查找文章，优化内容使其更适合 X 平台传播，保留原有文风，调整开头和结尾，添加 DYOR 免责声明，然后调用 baoyu-article-illustrator 配图、baoyu-cover-image 生成封面，最后调用 innomad-image-upload 上传所有本地图片并替换为远程 URL。
 ---
 
+> ⚠️ **已废弃 (Deprecated)**
+>
+> 此 skill 已被拆分为两个独立 skill：
+> - `/inm-review` — 语言校对 + 事实核查 + frontmatter 生成
+> - `/inm-distribute` — 多平台分发 + 风格优化
+>
+> 请使用新 skill 替代。此文件保留仅供参考。
+
 # 文章优化器 (Article Optimizer)
 
 从 Obsidian 笔记中查找文章，优化内容使其更适合社交媒体传播，自动生成配图和封面，并上传所有本地图片到图床。
