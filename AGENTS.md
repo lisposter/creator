@@ -5,7 +5,7 @@
 
 ## MUST NOT DO
 - 不要生成任何多余的文档
-- 禁止编辑、改动、删除 /data/obsidian/30-Blog 目录下的任何文件
+- 禁止编辑、改动、删除 /data/obsidian/30-Outputs 目录下的任何文件
 
 ---
 
@@ -37,7 +37,7 @@
 
 ## 内容风格指南
 
-完整风格指南见：`.agents/skills/innomad-article-optimizer/references/writing-style-guide.md`
+完整风格指南见：`.agents/skills/inm-distribute/references/writing-style-guide.md`
 
 **一句话总结**：前程序员的理性底色 + 跨学科的思维类比 + 朋友聊天式的真诚分享 + 短段落高密度的信息节奏 + 以金句收束的留白美学。
 

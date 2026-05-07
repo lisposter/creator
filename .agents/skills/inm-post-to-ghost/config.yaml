@@ -2,10 +2,9 @@
 # Ghost 发布工具配置文件
 
 # 文章源目录（相对于项目根目录）
-source_dir: data/obsidian/20-Workbench/Drafts
+source_dir: data/obsidian/30-Outputs/posts
 
-# 发布后归档目录（相对于项目根目录）
-target_dir: data/obsidian/30-Blog/innomad.io
+# 发布后文章保留在 source_dir 原位，不再移动
 
 # 默认字段值（frontmatter 中未指定时使用）
 defaults:
