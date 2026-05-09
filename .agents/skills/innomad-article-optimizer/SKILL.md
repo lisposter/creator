@@ -1,6 +1,6 @@
 ---
 name: innomad-article-optimizer
-description: 优化 Obsidian 文章并为社交媒体传播做准备。从 data/obsidian 的 01-Drafts 或 30-Outputs 查找文章，优化内容使其更适合 X 平台传播，保留原有文风，调整开头和结尾，添加 DYOR 免责声明，然后调用 baoyu-article-illustrator 配图、baoyu-cover-image 生成封面，最后调用 innomad-image-upload 上传所有本地图片并替换为远程 URL。
+description: 优化 Obsidian 文章并为社交媒体传播做准备。从 data/obsidian 的 01-Drafts 或 30-Outputs 查找文章，优化内容使其更适合 X 平台传播，保留原有文风，调整开头和结尾，添加 DYOR 免责声明，然后调用 baoyu-article-illustrator 配图，最后调用 innomad-image-upload 上传所有本地图片并替换为远程 URL。
 ---
 
 > ⚠️ **已废弃 (Deprecated)**
@@ -42,7 +42,7 @@ Progress:
 - [ ] Step 2: 优化内容 & 事实核查 + Frontmatter 生成
 - [ ] Step 3: 展示 diff + 核查报告 → 用户确认
 - [ ] Step 4: 生成文章配图 & 原图水印（可选）
-- [ ] Step 5: 生成封面 (baoyu-cover-image)
+- [ ] Step 5: 跳过封面生成（封面 skill 已删除）
 - [ ] Step 6: 上传图片到图床 (innomad-image-upload)
 - [ ] Step 7: 完成报告
 ```
@@ -142,7 +142,6 @@ find data/obsidian -name "*${ARTICLE_NAME}*.md" 2>/dev/null | head -10
 
 ```bash
 test -f .baoyu-skills/baoyu-article-illustrator/EXTEND.md && echo "illustrator ok"
-test -f .baoyu-skills/baoyu-cover-image/EXTEND.md && echo "cover ok"
 ```
 
 如有缺失，立即完成对应 skill 的首次设置（读取其 `references/config/first-time-setup.md`），全部就绪后再进入 Step 2。
@@ -518,28 +517,11 @@ SKILL_DIR="/Users/leigh/Lab/creator/.agents/skills/innomad-article-optimizer"
 
 ---
 
-## Step 5: 生成封面
+## Step 5: 跳过封面生成
 
-### 5.1 调用 baoyu-cover-image
+封面生成 skill 已删除，此废弃 skill 不再自动生成封面。
 
-使用用户在 Step 1.5 选定的标题生成封面。
-
-读取 `.agents/skills/baoyu-cover-image/SKILL.md` 并按其工作流执行（仅在 Step 1.6 依赖检查时未读过的情况下才读取完整 SKILL.md）：
-
-**推荐参数**：
-- Type: conceptual（概念型，适合大多数文章）
-- Aspect: 16:9（适合 X 平台展示）
-- Text: title-only（使用用户在 5.1 选择的标题）
-- Quick: true（使用自动选择，加快流程）
-
-**输入**：优化后的文章路径
-**输出**：封面保存在 `posts/{slug}/cover.png`
-
-> **注意**：封面图已通过 EXTEND.md 的 Safe Zone 指令确保核心内容集中在画面中心 70% 区域、边缘自然过渡，无需后处理 padding。
-
-### 5.2 跳过条件
-
-如果用户指定 `--no-cover`，跳过封面生成。
+如果需要封面，使用外部图片生成工具手动生成后放入 `posts/{slug}/`。
 
 ---
 
@@ -561,7 +543,7 @@ test -f .agents/skills/innomad-image-upload/SKILL.md && echo "found"
 | 图片类型 | 来源 | 示例路径 |
 |----------|------|----------|
 | AI 生成配图 | baoyu-article-illustrator | `imgs/01-xxx.png` |
-| 封面图 | baoyu-cover-image（Safe Zone） | `cover.png` |
+| 封面图 | 手动生成 | `cover.png` |
 | 原文配图（已处理） | 水印/缩放后的截图、照片 | `imgs/screenshot-xxx.png` |
 
 **不上传**：已经是远程 URL 的图片（`http://` / `https://` 开头）。
@@ -741,7 +723,7 @@ Agent:
 4. 展示 diff + 核查报告 → 用户确认
 5. 生成 article.md（通用版）+ article-x.md（X 版）
 6. 调用 baoyu-article-illustrator 生成 4 张配图
-7. 调用 baoyu-cover-image 生成封面
+7. 跳过封面生成
 8. 调用 innomad-image-upload 上传所有本地图片
 9. 输出完成报告
 ```
@@ -765,7 +747,6 @@ Agent:
 | Skill | 用途 | 必需 |
 |-------|------|------|
 | baoyu-article-illustrator | 生成文章配图 | 可选 |
-| baoyu-cover-image | 生成封面 | 可选 |
 | innomad-image-upload | 上传本地图片到图床 | 可选 |
 
 ### 子 Skill 快速调用参考
@@ -783,12 +764,6 @@ npx -y bun ${SKILL_DIR}/scripts/main.ts --promptfiles <prompt.md> --image <out.p
 - 读取 `.agents/skills/baoyu-article-illustrator/SKILL.md` 获取分析和大纲流程
 - EXTEND.md 路径：`.baoyu-skills/baoyu-article-illustrator/EXTEND.md`
 - 图片生成最终调用上面的 baoyu-image-gen 命令
-
-**baoyu-cover-image**（封面工作流）：
-- 读取 `.agents/skills/baoyu-cover-image/SKILL.md` 获取 5 维度配置流程
-- EXTEND.md 路径：`.baoyu-skills/baoyu-cover-image/EXTEND.md`
-- 图片生成最终调用上面的 baoyu-image-gen 命令
-- 封面已通过 EXTEND.md Safe Zone 指令确保内容不贴边，无需后处理 padding
 
 **innomad-image-upload**（图片上传）：
 ```bash

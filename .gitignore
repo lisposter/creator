@@ -362,6 +362,7 @@ $RECYCLE.BIN/
 
 # Data directory
 .data/
+data/obsidian
 data/obsidian/
 
 tests-data/

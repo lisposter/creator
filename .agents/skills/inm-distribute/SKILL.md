@@ -30,8 +30,9 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel)
 ```
 - [ ] Step 1: 定位源文章
 - [ ] Step 2: 选择目标平台
-- [ ] Step 3: 按平台生成内容
-- [ ] Step 4: 更新 frontmatter platforms 数组
+- [ ] Step 3: 下载远程配图副本
+- [ ] Step 4: 按平台生成内容
+- [ ] Step 5: 更新 frontmatter platforms 数组
 ```
 
 ---
@@ -102,7 +103,28 @@ X 版本已生成（platforms 中包含 "x"）。是否重新生成？
 
 ---
 
-## Step 3: 按平台生成内容
+## Step 3: 下载远程配图副本
+
+在生成或发布任意平台版本前，扫描源文章正文和 frontmatter 中的图片 URL：
+
+- Markdown 图片：`![alt](https://...)`
+- 封面字段：`cover_image`、`coverImage`、`cover`、`image`、`featureImage`、`feature_image`
+
+将远程图片下载到：
+
+```bash
+${PROJECT_ROOT}/posts/${SLUG}/imgs/originals/
+```
+
+要求：
+- 无论后续是否处理水印，都执行下载。
+- 只保存本地副本，**不要替换源文章中的远程链接**，不要改动 reviewed/30-Outputs 正文里的图片 URL。
+- 文件名保留原始文件名；如重名，用短 hash 后缀去重。
+- 后续完成报告列出下载清单，方便手动上传到 X、公众号、小红书等平台。
+
+---
+
+## Step 4: 按平台生成内容
 
 ### 风格优化参考
 
@@ -116,7 +138,7 @@ ${SKILL_DIR}/references/writing-style-guide.md
 
 ---
 
-### 3A. Ghost
+### 4A. Ghost
 
 **风格改写：无**（主文章即 Ghost 正文）
 
@@ -145,7 +167,7 @@ cover_image: "https://imgs.innomad.io/blog/{slug}_cover.png"
 
 ---
 
-### 3B. X
+### 4B. X
 
 **风格改写：**
 - 读取 `writing-style-guide.md`
@@ -153,7 +175,7 @@ cover_image: "https://imgs.innomad.io/blog/{slug}_cover.png"
 - 优化结尾：金句收束 + 留白
 - 参照 `inm-x-optimizer` 原则：Hook + 核心观点 + 金句
 - 单条长文格式（X Article），不是线程
-- 末尾附 `[BLOG_URL]` 占位符（发布时替换为 Ghost 文章链接）
+- 不在文末追加原文链接、`[BLOG_URL]` 占位符或其他回链
 
 **提供 A/B/C 三个方向：**
 
@@ -176,7 +198,7 @@ cover_image: "https://imgs.innomad.io/blog/{slug}_cover.png"
 
 ---
 
-### 3C. 小红书
+### 4C. 小红书
 
 **风格改写：**
 - 口语化，首段钩子吸引点击
@@ -198,7 +220,7 @@ cover_image: "https://imgs.innomad.io/blog/{slug}_cover.png"
 
 ---
 
-### 3D. 公众号
+### 4D. 公众号
 
 **风格改写：**
 - 读取 `writing-style-guide.md`
@@ -215,7 +237,7 @@ cover_image: "https://imgs.innomad.io/blog/{slug}_cover.png"
 
 ---
 
-## Step 4: 更新 Frontmatter
+## Step 5: 更新 Frontmatter
 
 每个平台生成完成后，立即将平台名追加到源文章（`30-Outputs/posts/` 中的文件）的 `platforms` 数组：
 
@@ -240,6 +262,7 @@ platforms:
 
 源文章：data/obsidian/30-Outputs/posts/YYYY-MM-DD-{slug}.md
 已生成平台：
+  ✅ 远程配图副本 — posts/{slug}/imgs/originals/
   ✅ Ghost — 配图已上传，cover_image 已回填
   ✅ X — posts/{slug}/platforms/x.md（方向 B）
   ✅ 小红书 — posts/{slug}/platforms/xiaohongshu.md + 配图

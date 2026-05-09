@@ -31,8 +31,8 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel)
 - [ ] Step 4: 配图建议（不生成图片）
 - [ ] Step 5: 生成 frontmatter
 - [ ] Step 6: 输出 reviewed.md + review-report.md
-- [ ] Step 7: 展示 diff → 询问是否生成配图和封面
-- [ ] Step 8: (可选) 生成配图和封面
+- [ ] Step 7: 展示 diff → 询问是否生成配图
+- [ ] Step 8: (可选) 生成配图
 - [ ] Step 9: 用户最终确认 → 归档
 ```
 
@@ -110,8 +110,8 @@ find "${PROJECT_ROOT}/data/obsidian/" -name "*${ARTICLE_NAME}*" -name "*.md" 2>/
 
 | 严重度 | 标记 | 说明 | 处理 |
 |--------|------|------|------|
-| 严重 | 🔴 | 数据明确错误，可能误导读者 | 在 reviewed.md 中直接修正 + `⚠️` 标注 |
-| 中等 | 🟡 | 数据可能过时或来源不明确 | 在 reviewed.md 中加 `⚠️` 标注，不修改 |
+| 严重 | 🔴 | 数据明确错误，可能误导读者 | 在 reviewed.md 中直接修正为可发布文本 |
+| 中等 | 🟡 | 数据可能过时或来源不明确 | 谨慎补充数据日期、来源或限定语，使正文可直接使用 |
 | 轻微 | 🟢 | 表述略有偏差但不影响理解 | 仅在报告中记录 |
 
 ### 核查要点
@@ -121,6 +121,12 @@ find "${PROJECT_ROOT}/data/obsidian/" -name "*${ARTICLE_NAME}*" -name "*.md" 2>/
 - 历史日期：事件发生时间是否准确
 - 引用/出处：引文是否存在、是否被正确归属
 - 统计数据：百分比、数量级是否合理
+
+### Reviewed 正文要求
+
+- `*_reviewed.md` 必须是可直接发布/分发的干净稿件。
+- 不要在正文里插入批注、说明标签或审稿痕迹，例如「事实核查补充」「待确认」「需核查」、脚注式审稿说明、`⚠️` 标记。
+- 事实核查发现需要补充的信息时，直接自然地并入原句或相邻段落；说明修改理由和来源只写在 `*_review-report.md`。
 
 ---
 
@@ -187,7 +193,7 @@ platforms: []
 
 纠错后的完整版本，包含：
 - 完整 frontmatter（Step 5 生成）
-- 纠错后的正文（错误处保留 `⚠️` 标注）
+- 纠错后的正文（不包含审稿批注、说明标签或核查标记）
 - 正文内容顺序和结构与原文完全一致
 
 ### 6.2 `文章名_review-report.md`
@@ -220,10 +226,10 @@ platforms: []
 
 用 Markdown diff 格式展示原文与 reviewed 版本的差异，仅展示有变动的段落。
 
-### 7.2 询问配图和封面
+### 7.2 询问配图
 
 ```
-是否现在生成配图和封面？（会调用 baoyu-article-illustrator + baoyu-cover-image，耗时较长）
+是否现在生成配图？（会调用 baoyu-article-illustrator，耗时较长）
 A. 是，现在生成
 B. 否，跳过（可在 /inm-distribute 前手动生成）
 ```
@@ -232,7 +238,7 @@ B. 否，跳过（可在 /inm-distribute 前手动生成）
 
 ---
 
-## Step 8: (可选) 生成配图和封面
+## Step 8: (可选) 生成配图
 
 仅在用户选择 A 时执行。
 
@@ -268,17 +274,7 @@ python3 "${PROJECT_ROOT}/.agents/skills/inm-review/scripts/add_watermark.py" \
   "${PROJECT_ROOT}/posts/${SLUG}/imgs/illustration_1.png"
 ```
 
-### 8.4 生成封面
-
-调用 `baoyu-cover-image` skill，生成封面保存到：
-
-```bash
-${PROJECT_ROOT}/posts/${SLUG}/${SLUG}_cover.png
-```
-
-`cover_image` frontmatter 字段**留空**，待 `/inm-distribute` Ghost 步骤上传后回填。
-
-### 8.5 展示最终版
+### 8.4 展示最终版
 
 展示含配图的 reviewed.md 完整内容，等待用户最终确认。
 

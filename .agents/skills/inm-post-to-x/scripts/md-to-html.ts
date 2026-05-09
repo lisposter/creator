@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -8,14 +9,17 @@ interface ImageInfo {
   originalPath: string;
   fileName: string;
   blockIndex: number;
+  localPath: string | null;
 }
 
 interface ParsedMarkdown {
   title: string;
   coverImage: string | null;
+  coverImageLocalPath: string | null;
   contentImages: ImageInfo[];
   html: string;
   totalBlocks: number;
+  imageDownloadDir: string;
 }
 
 function parseFrontmatter(content: string): { frontmatter: Record<string, string>; body: string } {
@@ -51,6 +55,119 @@ function getFileName(urlOrPath: string): string {
   // Remove query params if any
   name = name.split('?')[0]!;
   return name || 'image';
+}
+
+function isRemotePath(value: string | null | undefined): value is string {
+  return Boolean(value && /^https?:\/\//i.test(value));
+}
+
+function sanitizeFileName(name: string): string {
+  return name
+    .replace(/[?#].*$/, '')
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '') || 'image';
+}
+
+function extensionFromContentType(contentType: string | null): string {
+  if (!contentType) return '';
+  const normalized = contentType.toLowerCase();
+  if (normalized.includes('image/jpeg')) return '.jpg';
+  if (normalized.includes('image/png')) return '.png';
+  if (normalized.includes('image/webp')) return '.webp';
+  if (normalized.includes('image/gif')) return '.gif';
+  return '';
+}
+
+function findProjectRoot(startDir: string): string | null {
+  let current = path.resolve(startDir);
+  while (true) {
+    if (fs.existsSync(path.join(current, '.git'))) return current;
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+}
+
+function pathFromParts(parts: string[]): string {
+  const joined = parts.join(path.sep);
+  return joined || path.sep;
+}
+
+function slugFromFileName(markdownPath: string): string {
+  const raw = path.basename(markdownPath, path.extname(markdownPath));
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '') || 'article';
+}
+
+function determineImageDownloadDir(markdownPath: string, frontmatter: Record<string, string>): string {
+  const absolutePath = path.resolve(markdownPath);
+  const projectRoot = findProjectRoot(path.dirname(absolutePath));
+  if (projectRoot) {
+    const projectPostsDir = path.join(projectRoot, 'posts');
+    const relativeToProjectPosts = path.relative(projectPostsDir, absolutePath);
+    if (!relativeToProjectPosts.startsWith('..') && !path.isAbsolute(relativeToProjectPosts)) {
+      const [slug] = relativeToProjectPosts.split(path.sep);
+      if (slug && !path.extname(slug)) {
+        return path.join(projectPostsDir, slug, 'imgs', 'originals');
+      }
+    }
+  }
+
+  const slug = frontmatter.slug?.trim();
+  if (projectRoot && slug) {
+    return path.join(projectRoot, 'posts', slug, 'imgs', 'originals');
+  }
+
+  if (projectRoot) {
+    return path.join(projectRoot, 'posts', 'manual-images', slugFromFileName(absolutePath));
+  }
+
+  const parts = absolutePath.split(path.sep);
+  const postsIndex = parts.lastIndexOf('posts');
+  const possibleSlug = parts[postsIndex + 1];
+  if (postsIndex >= 0 && possibleSlug && !path.extname(possibleSlug)) {
+    return path.join(pathFromParts(parts.slice(0, postsIndex + 2)), 'imgs', 'originals');
+  }
+
+  return path.join(path.dirname(absolutePath), 'downloaded-images');
+}
+
+function resolveLocalImagePath(imagePath: string, markdownPath: string): string {
+  if (path.isAbsolute(imagePath)) return imagePath;
+  return path.resolve(path.dirname(markdownPath), imagePath);
+}
+
+async function downloadRemoteImage(imageUrl: string, downloadDir: string): Promise<string> {
+  await mkdir(downloadDir, { recursive: true });
+
+  const response = await fetch(imageUrl, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; inm-post-to-x)' },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to download image (${response.status}): ${imageUrl}`);
+  }
+
+  const contentType = response.headers.get('content-type');
+  const originalName = sanitizeFileName(getFileName(imageUrl));
+  const originalExt = path.extname(originalName);
+  const ext = originalExt || extensionFromContentType(contentType) || '.jpg';
+  const baseName = path.basename(originalName, originalExt) || 'image';
+  const hash = createHash('sha256').update(imageUrl).digest('hex').slice(0, 8);
+  const localPath = path.join(downloadDir, `${baseName}-${hash}${ext}`);
+
+  if (fs.existsSync(localPath)) return localPath;
+
+  const arrayBuffer = await response.arrayBuffer();
+  if (arrayBuffer.byteLength === 0) {
+    throw new Error(`Downloaded image is empty: ${imageUrl}`);
+  }
+
+  await writeFile(localPath, Buffer.from(arrayBuffer));
+  return localPath;
 }
 
 function escapeHtml(text: string): string {
@@ -195,7 +312,7 @@ function convertMarkdownToHtml(markdown: string, imageCallback: (src: string, al
   };
 }
 
-function parseMarkdown(markdownPath: string, options?: { coverImage?: string; title?: string }): ParsedMarkdown {
+async function parseMarkdown(markdownPath: string, options?: { coverImage?: string; title?: string }): Promise<ParsedMarkdown> {
   const content = fs.readFileSync(markdownPath, 'utf-8');
   const { frontmatter, body } = parseFrontmatter(content);
 
@@ -240,6 +357,7 @@ function parseMarkdown(markdownPath: string, options?: { coverImage?: string; ti
       originalPath: img.src,
       fileName,
       blockIndex: i,
+      localPath: null,
     });
   }
 
@@ -249,12 +367,27 @@ function parseMarkdown(markdownPath: string, options?: { coverImage?: string; ti
     finalHtml = finalHtml.replace(new RegExp(`<p>${escapeForRegex(coverPlaceholder)}</p>\\n?`, 'g'), '');
   }
 
+  const imageDownloadDir = determineImageDownloadDir(markdownPath, frontmatter);
+  const coverImageLocalPath = resolvedCover
+    ? isRemotePath(resolvedCover)
+      ? await downloadRemoteImage(resolvedCover, imageDownloadDir)
+      : resolveLocalImagePath(resolvedCover, markdownPath)
+    : null;
+
+  for (const img of contentImages) {
+    img.localPath = isRemotePath(img.originalPath)
+      ? await downloadRemoteImage(img.originalPath, imageDownloadDir)
+      : resolveLocalImagePath(img.originalPath, markdownPath);
+  }
+
   return {
     title,
     coverImage: resolvedCover,
+    coverImageLocalPath,
     contentImages,
     html: finalHtml,
     totalBlocks,
+    imageDownloadDir,
   };
 }
 
@@ -320,7 +453,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const result = parseMarkdown(markdownPath, { title, coverImage });
+  const result = await parseMarkdown(markdownPath, { title, coverImage });
 
   if (saveHtmlPath) {
     await writeFile(saveHtmlPath, result.html, 'utf-8');
@@ -333,14 +466,22 @@ async function main(): Promise<void> {
     // Output structured info
     console.log(`📄 标题: ${result.title}`);
     console.log(`🖼️ 封面: ${result.coverImage ?? '（无）'}`);
+    if (result.coverImageLocalPath) {
+      console.log(`   本地: ${result.coverImageLocalPath}`);
+    }
 
     if (result.contentImages.length > 0) {
       console.log(`\n📸 图片占位符 (${result.contentImages.length} 张):`);
       for (const img of result.contentImages) {
         console.log(`   ${img.placeholder} → ${img.originalPath}`);
+        if (img.localPath) console.log(`      本地: ${img.localPath}`);
       }
     } else {
       console.log('\n📸 图片: 无');
+    }
+
+    if (result.imageDownloadDir) {
+      console.log(`\n📥 远程图片副本目录: ${result.imageDownloadDir}`);
     }
 
     console.log(`\n📊 总段落: ${result.totalBlocks}`);

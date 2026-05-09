@@ -97,10 +97,11 @@ Publishing Progress:
 - [ ] Step 1: Determine input type
 - [ ] Step 2: Check markdown-to-html skill
 - [ ] Step 3: Convert to HTML
-- [ ] Step 4: Validate metadata (title, summary, cover)
-- [ ] Step 5: Select method and configure credentials
-- [ ] Step 6: Publish to WeChat
-- [ ] Step 7: Report completion
+- [ ] Step 4: Download remote image copies
+- [ ] Step 5: Validate metadata (title, summary, cover)
+- [ ] Step 6: Select method and configure credentials
+- [ ] Step 7: Publish to WeChat
+- [ ] Step 8: Report completion
 ```
 
 ### Step 0: Load Preferences
@@ -118,7 +119,7 @@ Resolve and store these defaults for later steps:
 
 | Input Type | Detection | Action |
 |------------|-----------|--------|
-| HTML file | Path ends with `.html`, file exists | Skip to Step 4 |
+| HTML file | Path ends with `.html`, file exists | Skip to Step 5 |
 | Markdown file | Path ends with `.md`, file exists | Continue to Step 2 |
 | Plain text | Not a file path, or file doesn't exist | Save to markdown, then Step 2 |
 
@@ -188,7 +189,22 @@ npx -y bun ${MD_TO_HTML_SKILL_DIR}/scripts/main.ts <markdown_file> --theme <them
 
 3. **Parse JSON output** to get: `htmlPath`, `title`, `author`, `summary`, `contentImages`
 
-### Step 4: Validate Metadata
+### Step 4: Download Remote Image Copies
+
+If the input is Markdown, scan body images and frontmatter image fields (`cover_image`, `coverImage`, `cover`, `image`, `featureImage`, `feature_image`) before publishing.
+
+Download every remote image URL to:
+
+```bash
+${PROJECT_ROOT}/posts/${SLUG}/imgs/originals/
+```
+
+Rules:
+- Always do this, regardless of whether watermark processing is needed.
+- Keep the original Markdown/reviewed remote URLs unchanged.
+- These persistent local copies are for manual upload to other platforms; the WeChat script may still create its own temporary files for API/browser insertion.
+
+### Step 5: Validate Metadata
 
 Check extracted metadata from Step 3 (or HTML meta tags if direct HTML input).
 
@@ -209,7 +225,7 @@ Check extracted metadata from Step 3 (or HTML meta tags if direct HTML input).
 4. Else fallback to first inline content image.
 5. If still missing, stop and request a cover image before publishing.
 
-### Step 5: Select Publishing Method and Configure
+### Step 6: Select Publishing Method and Configure
 
 **Ask publishing method** (unless specified in EXTEND.md or CLI):
 
@@ -250,7 +266,7 @@ WECHAT_APP_ID=<user_input>
 WECHAT_APP_SECRET=<user_input>
 ```
 
-### Step 6: Publish to WeChat
+### Step 7: Publish to WeChat
 
 **API method**:
 
@@ -275,7 +291,7 @@ If script parameters do not expose the two comment fields, still ensure final AP
 npx -y bun ${SKILL_DIR}/scripts/wechat-article.ts --html <html_file>
 ```
 
-### Step 7: Completion Report
+### Step 8: Completion Report
 
 **For API method**, include draft management link:
 
@@ -353,7 +369,7 @@ Files created:
 
 **For API method**:
 - WeChat Official Account API credentials
-- Guided setup in Step 5, or manually set in `.baoyu-skills/.env`
+- Guided setup in Step 6, or manually set in `.baoyu-skills/.env`
 
 **For Browser method**:
 - Google Chrome
@@ -373,7 +389,7 @@ Files created:
 | Issue | Solution |
 |-------|----------|
 | No markdown-to-html skill | Install `baoyu-markdown-to-html` from suggested URL |
-| Missing API credentials | Follow guided setup in Step 5 |
+| Missing API credentials | Follow guided setup in Step 6 |
 | Access token error | Check if API credentials are valid and not expired |
 | Not logged in (browser) | First run opens browser - scan QR to log in |
 | Chrome not found | Set `WECHAT_BROWSER_CHROME_PATH` env var |

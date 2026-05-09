@@ -35,6 +35,7 @@ npx -y bun ${SKILL_DIR}/scripts/copy-to-clipboard.ts html --file /tmp/x-article.
 - 文章标题
 - 封面图路径（如有）
 - 图片占位符列表及对应文件路径
+- 远程图片本地副本路径（如有）
 - 富文本已复制到剪贴板的确认
 
 ### 输入文件
@@ -63,7 +64,7 @@ md-to-html.ts（转换）
     │  - 提取标题、封面
     │  - Markdown → HTML
     │  - 图片 → 【文件名】占位符
-    │  - 不下载远程图片
+    │  - 下载远程图片副本到本地
     │
     ▼
 copy-to-clipboard.ts（复制）
@@ -85,6 +86,8 @@ copy-to-clipboard.ts（复制）
 - 示例：`![示意图](imgs/chart.png)` → 正文中显示为 `【chart.png】`
 - 示例：`![](https://example.com/photo.jpg)` → 正文中显示为 `【photo.jpg】`
 - 转换完成后会输出完整的图片清单，列出每个占位符对应的原始路径
+- 远程图片必须下载本地副本，默认保存到 `posts/{slug}/imgs/originals/`；如果无法识别 `slug`，保存到 `posts/manual-images/{article}/`
+- 下载只创建本地副本，不修改输入 Markdown，不替换 reviewed/源稿中的远程链接
 
 ## Markdown 支持格式
 

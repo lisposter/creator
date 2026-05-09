@@ -125,6 +125,10 @@ npx -y bun ${SKILL_DIR}/scripts/post-to-ghost.ts --sync --dry-run
     └─ 用户明确确认后才继续
     │
     ▼
+【Agent】下载远程配图副本
+    └─ 保存到 posts/{slug}/imgs/originals/，不改写 Markdown 里的远程链接
+    │
+    ▼
 解析 Frontmatter（提取 slug、tags 等）
     │
     ▼
@@ -213,6 +217,16 @@ Ghost Admin API
 ### 发布后：归档确认
 
 发布成功后，**必须询问用户是否要将文件移动到归档目录**（`target_dir`）。如果用户确认，再执行带 `--move` 的命令或直接 `mv` 移动文件。
+
+### 远程配图本地副本（必须执行）
+
+发布前扫描正文和 frontmatter 图片字段（`cover_image`、`coverImage`、`cover`、`image`、`featureImage`、`feature_image`）。遇到远程图片 URL 时下载到：
+
+```bash
+${PROJECT_ROOT}/posts/${SLUG}/imgs/originals/
+```
+
+只保存本地副本，方便后续手动上传到其他平台；不要替换原 Markdown 中的远程链接。
 
 ## 注意事项
 
