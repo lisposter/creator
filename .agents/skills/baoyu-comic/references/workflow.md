@@ -416,27 +416,20 @@ With confirmed prompts from Step 5/6:
 **CRITICAL: Character Reference is MANDATORY** for visual consistency across all pages.
 
 **Before generating any page**:
-1. Read the image generation skill's SKILL.md
-2. Check if it supports reference image input (`--ref`, `--reference`, etc.)
-3. Choose the appropriate strategy below
+1. Confirm the available image generation backend.
+2. Check whether it supports reference image input.
+3. Choose the appropriate strategy below.
 
 **Character Reference Strategy**:
 
-| Skill Capability | Strategy | Action |
-|------------------|----------|--------|
-| Supports `--ref` | **Strategy A** | Pass `characters/characters.png` with EVERY page |
-| Does NOT support `--ref` | **Strategy B** | Prepend character descriptions to EVERY prompt |
+| Image Backend Capability | Strategy | Action |
+|--------------------------|----------|--------|
+| Supports reference images | **Strategy A** | Pass `characters/characters.png` with EVERY page |
+| Does NOT support reference images | **Strategy B** | Prepend character descriptions to EVERY prompt |
 
-**Strategy A: Using `--ref` parameter** (e.g., baoyu-image-gen)
+**Strategy A: Using reference-image input**
 
-```bash
-# Each page generation MUST include --ref
-npx -y bun ${SKILL_DIR}/../baoyu-image-gen/scripts/main.ts \
-  --promptfiles prompts/01-page-xxx.md \
-  --image 01-page-xxx.png \
-  --ar 3:4 \
-  --ref characters/characters.png
-```
+Each page generation must include `characters/characters.png` as the reference image, with a 3:4 aspect ratio unless the user requests another layout.
 
 **Strategy B: Embedding character descriptions in prompt**
 

@@ -1,6 +1,6 @@
 ---
 name: inm-distribute
-description: 多平台内容分发：将审稿完成的文章转换为 Ghost、X、小红书、公众号等平台格式，含风格优化。当用户提到「分发」「distribute」「生成X版本」「生成公众号版本」「生成小红书版本」时使用。
+description: 多平台内容分发：将审稿完成的文章转换为 Blog、X、小红书、公众号等平台格式，含风格优化。当用户提到「分发」「distribute」「生成X版本」「生成公众号版本」「生成小红书版本」时使用。
 ---
 
 # 多平台分发 (Content Distribution)
@@ -74,7 +74,7 @@ mkdir -p "${PROJECT_ROOT}/posts/${SLUG}/imgs"
 | 输入 | 解析为 |
 |------|--------|
 | 无参数 | AskUserQuestion 交互选择 |
-| `ghost` | Ghost |
+| `blog` / `ghost` | Blog |
 | `x` | X |
 | `xiaohongshu` / `xhs` | 小红书 |
 | `wechat` | 公众号 |
@@ -87,7 +87,7 @@ mkdir -p "${PROJECT_ROOT}/posts/${SLUG}/imgs"
 
 ```
 请选择要生成的平台（可多选，用空格或逗号分隔）：
-1. Ghost（上传配图 + 回填 cover_image）
+1. Blog（上传配图 + 回填 cover_image）
 2. X（单条长文，A/B/C 三个方向）
 3. 小红书（口语化 + 配图）
 4. 公众号（标题优化 + 段落适配）
@@ -138,9 +138,9 @@ ${SKILL_DIR}/references/writing-style-guide.md
 
 ---
 
-### 4A. Ghost
+### 4A. Blog
 
-**风格改写：无**（主文章即 Ghost 正文）
+**风格改写：无**（主文章即 Blog 正文）
 
 **操作：**
 
@@ -161,7 +161,7 @@ ls "${PROJECT_ROOT}/posts/${SLUG}/imgs/"*.png 2>/dev/null | wc -l
 cover_image: "https://imgs.innomad.io/blog/{slug}_cover.png"
 ```
 
-4. 将 `ghost` 追加到 frontmatter `platforms` 数组。
+4. 将 `blog` 追加到 frontmatter `platforms` 数组。
 
 **输出：直接修改源文章**（`30-Outputs/posts/` 中的文件），无额外输出文件。
 
@@ -243,7 +243,7 @@ cover_image: "https://imgs.innomad.io/blog/{slug}_cover.png"
 
 ```yaml
 platforms:
-  - ghost
+  - blog
   - x
 ```
 
@@ -263,13 +263,13 @@ platforms:
 源文章：data/obsidian/30-Outputs/posts/YYYY-MM-DD-{slug}.md
 已生成平台：
   ✅ 远程配图副本 — posts/{slug}/imgs/originals/
-  ✅ Ghost — 配图已上传，cover_image 已回填
+  ✅ Blog — 配图已上传，cover_image 已回填
   ✅ X — posts/{slug}/platforms/x.md（方向 B）
   ✅ 小红书 — posts/{slug}/platforms/xiaohongshu.md + 配图
   ✅ 公众号 — posts/{slug}/platforms/wechat.md
 
 下一步：
-  /inm-post-to-ghost   → 发布到 Ghost
+  /inm-post-to-blog    → 补全 frontmatter、确认并发布到 innomad.io
   /inm-post-to-x       → 复制到剪贴板，手动发布到 X
   /baoyu-post-to-wechat → 发布到公众号
   小红书手动发布配图和文案

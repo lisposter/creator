@@ -56,17 +56,9 @@ test -f "$HOME/.baoyu-skills/baoyu-markdown-to-html/EXTEND.md" && echo "user"
 2. Check if content contains CJK characters (Chinese/Japanese/Korean)
 3. If no CJK content → skip to Step 1
 
-**Format Suggestion**:
+**Format Handling**:
 
-If CJK content detected AND `baoyu-format-markdown` skill is available:
-
-Use `AskUserQuestion` to ask whether to format first. Formatting can fix:
-- Bold markers with punctuation inside causing `**` parse failures
-- CJK/English spacing issues
-
-**If user agrees**: Invoke `baoyu-format-markdown` skill to format the file, then use formatted file as input.
-
-**If user declines**: Continue with original file.
+Preserve the source Markdown structure. If CJK/English spacing or bold-marker punctuation issues affect rendering, make the smallest local adjustment inside this conversion flow and continue with the adjusted input.
 
 ### Step 1: Confirm Theme
 

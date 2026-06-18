@@ -1,6 +1,6 @@
 ---
 name: inm-review
-description: AI 审稿：语言校对 + 事实核查 + frontmatter 生成 + 配图建议。只纠错，不改写风格。在 data/obsidian/10-Drafts/ 查找文章，输出 reviewed.md 和 review-report.md。当用户提到「审稿」「review」「校对」「核查」时使用。
+description: AI 审稿：语言校对 + 事实核查 + frontmatter 生成 + 配图/封面建议。只纠错，不改写风格。在 data/obsidian/10-Drafts/ 查找文章，输出 reviewed.md 和 review-report.md。当用户提到「审稿」「review」「校对」「核查」时使用。
 ---
 
 # AI 审稿 (Article Review)
@@ -31,12 +31,11 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel)
 - [ ] Step 4: 配图建议（不生成图片）
 - [ ] Step 5: 生成 frontmatter
 - [ ] Step 6: 输出 reviewed.md + review-report.md
-- [ ] Step 7: 展示 diff → 询问是否生成配图
-- [ ] Step 8: (可选) 生成配图
-- [ ] Step 9: 用户最终确认 → 归档
+- [ ] Step 7: 展示 diff + 后续图片/封面建议
+- [ ] Step 8: 用户最终确认 → 归档
 ```
 
-**交互点**：Step 7（确认修改 + 是否生成配图）和 Step 9（最终确认归档）。
+**交互点**：Step 7（确认修改）和 Step 8（最终确认归档）。
 
 ---
 
@@ -138,7 +137,7 @@ find "${PROJECT_ROOT}/data/obsidian/" -name "*${ARTICLE_NAME}*" -name "*.md" 2>/
 - **位置**：建议插入的段落/标题后
 - **类型**：数据图表 / 概念图 / 流程图 / 对比图 / 示意图
 - **说明**：图片应展示的内容
-- **风格**：推荐的 baoyu-article-illustrator 风格（innomad-finance / innomad-tech / innomad-life）
+- **后续工具**：表格图片流程 / `inm-cover-image` / 手动配图
 
 ---
 
@@ -159,7 +158,7 @@ featured: false
 password: ""
 tiers: []
 summary: "2-3 句话的摘要，符合一挪迈文风"
-cover_image: ""  # 留空，待 /inm-distribute Ghost 上传后回填
+cover_image: ""  # 留空，待 /inm-distribute 上传后回填
 status: draft
 platforms: []
 ---
@@ -212,79 +211,35 @@ platforms: []
 |---|------|----------|--------|------|
 | 1 | "SPY 年化 10%" | 近 10 年 CAGR 约 12.5% | 🟡 | Yahoo Finance |
 
-**配图建议表：**
+**配图/封面建议表：**
 
 | # | 位置 | 类型 | 说明 | 风格 |
 |---|------|------|------|------|
-| 1 | "ETF 对比"段后 | 数据图表 | JEPI vs JEPQ 收益对比 | innomad-finance |
+| 1 | "ETF 对比"段后 | 数据图表 | JEPI vs JEPQ 收益对比 | 表格图片流程 |
 
 ---
 
-## Step 7: 展示 Diff + 询问配图
+## Step 7: 展示 Diff + 后续图片/封面建议
 
 ### 7.1 展示修改对比
 
 用 Markdown diff 格式展示原文与 reviewed 版本的差异，仅展示有变动的段落。
 
-### 7.2 询问配图
+### 7.2 后续建议
 
-```
-是否现在生成配图？（会调用 baoyu-article-illustrator，耗时较长）
-A. 是，现在生成
-B. 否，跳过（可在 /inm-distribute 前手动生成）
-```
+根据 review-report 的建议，提示用户后续可使用：
 
-使用 AskUserQuestion 获取用户选择。
+- `inm-writing` 的 finance table image rules：把表格做成图片并上传 PicList。
+- `inm-cover-image`：生成或更新封面图。
+- `innomad-image-upload`：上传本地图片并替换 Markdown 链接。
 
 ---
 
-## Step 8: (可选) 生成配图
-
-仅在用户选择 A 时执行。
-
-### 8.1 创建工作目录
-
-从 frontmatter 读取 slug：
-
-```bash
-SLUG="article-slug"  # 从 frontmatter 提取
-mkdir -p "${PROJECT_ROOT}/posts/${SLUG}/imgs"
-mkdir -p "${PROJECT_ROOT}/posts/${SLUG}/platforms"
-```
-
-### 8.2 生成文章配图
-
-调用 `baoyu-article-illustrator` skill，根据 Step 4 配图建议表生成插图。
-
-图片保存到 `${PROJECT_ROOT}/posts/${SLUG}/imgs/`。
-
-生成后以本地相对路径插入 `文章名_reviewed.md` 对应位置：
-
-```markdown
-![配图说明](../../posts/{slug}/imgs/illustration_1.png)
-```
-
-### 8.3 水印处理
-
-对每张配图添加水印：
-
-```bash
-python3 "${PROJECT_ROOT}/.agents/skills/inm-review/scripts/add_watermark.py" \
-  "${PROJECT_ROOT}/posts/${SLUG}/imgs/illustration_1.png" \
-  "${PROJECT_ROOT}/posts/${SLUG}/imgs/illustration_1.png"
-```
-
-### 8.4 展示最终版
-
-展示含配图的 reviewed.md 完整内容，等待用户最终确认。
-
----
-
-## Step 9: 用户确认 → 归档
+## Step 8: 用户确认 → 归档
 
 用户确认后执行：
 
-### 9.1 移动 reviewed 文件到 30-Outputs
+### 8.1 移动 reviewed 文件到 30-Outputs
 
 ```bash
 DATE=$(date +%Y-%m-%d)
@@ -293,7 +248,7 @@ mv "${PROJECT_ROOT}/data/obsidian/10-Drafts/文章名_reviewed.md" \
    "${PROJECT_ROOT}/data/obsidian/30-Outputs/posts/${DATE}-${SLUG}.md"
 ```
 
-### 9.2 删除临时文件
+### 8.2 删除临时文件
 
 ```bash
 rm "${PROJECT_ROOT}/data/obsidian/10-Drafts/文章名.md"
@@ -302,14 +257,14 @@ rm "${PROJECT_ROOT}/data/obsidian/10-Drafts/文章名_review-report.md"
 
 删除前确认文件存在，不存在则跳过（不报错）。
 
-### 9.3 确保工作目录存在
+### 8.3 确保工作目录存在
 
 ```bash
 mkdir -p "${PROJECT_ROOT}/posts/${SLUG}/imgs"
 mkdir -p "${PROJECT_ROOT}/posts/${SLUG}/platforms"
 ```
 
-### 9.4 完成报告
+### 8.4 完成报告
 
 输出：
 - 归档路径：`data/obsidian/30-Outputs/posts/YYYY-MM-DD-{slug}.md`

@@ -207,12 +207,7 @@ Analyze → [Check Existing?] → [Confirm: Style + Reviews] → Storyboard → 
 
 **7.1 Generate character sheet first**:
 - **Backup rule**: If `characters/characters.png` exists, rename to `characters/characters-backup-YYYYMMDD-HHMMSS.png`
-```bash
-# Use Reference Sheet Prompt from characters/characters.md
-npx -y bun ${SKILL_DIR}/../baoyu-image-gen/scripts/main.ts \
-  --promptfiles characters/characters.md \
-  --image characters/characters.png --ar 4:3
-```
+Generate `characters/characters.png` from `characters/characters.md` with the available image generation backend. Use a 4:3 aspect ratio and keep the output file path stable so later pages can reference it.
 
 **Compress character sheet** (recommended):
 Compress to reduce token usage when used as reference image:
@@ -222,22 +217,16 @@ Compress to reduce token usage when used as reference image:
 
 **7.2 Generate each page WITH character reference**:
 
-| Skill Capability | Strategy |
-|------------------|----------|
-| Supports `--ref` | Pass `characters/characters.png` with EVERY page |
-| No `--ref` support | Prepend character descriptions to EVERY prompt file |
+| Image Backend Capability | Strategy |
+|--------------------------|----------|
+| Supports reference images | Pass `characters/characters.png` with EVERY page |
+| No reference-image support | Prepend character descriptions to EVERY prompt file |
 
 **Backup rules for page generation**:
 - If prompt file exists: rename to `prompts/NN-{cover|page}-[slug]-backup-YYYYMMDD-HHMMSS.md`
 - If image file exists: rename to `NN-{cover|page}-[slug]-backup-YYYYMMDD-HHMMSS.png`
 
-```bash
-# Example: ALWAYS include --ref for consistency
-npx -y bun ${SKILL_DIR}/../baoyu-image-gen/scripts/main.ts \
-  --promptfiles prompts/01-page-xxx.md \
-  --image 01-page-xxx.png --ar 3:4 \
-  --ref characters/characters.png
-```
+Use a 3:4 aspect ratio for page images unless the user requests another layout. Always keep character descriptions or the character reference image attached to every page prompt.
 
 **Full workflow details**: [references/workflow.md](references/workflow.md)
 
