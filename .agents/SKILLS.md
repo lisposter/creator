@@ -12,6 +12,7 @@
 | inm-review | 自研 | AI 审稿：先给修改建议和核查结果，确认后才生成 reviewed（只纠错不改写） |
 | inm-distribute | 自研 | 多平台分发：Blog、X、小红书、公众号，含风格优化 |
 | inm-cover-image | 自研 | 一挪迈博客 / X Article 5:2 横向封面图生成 |
+| inm-watermark-image | 自研 | 无水印原图叠加 3×3 防盗水印，局部可读性保护，输出 PNG |
 | inm-x-optimizer | 自研（基于 xai-org/x-algorithm 源码分析） | 基于 X 开源推荐算法（Phoenix 系统）优化推文，提升互动和曝光 |
 | inm-post-to-x | 自研（基于 baoyu-post-to-x 简化） | Markdown → 富文本剪贴板 + 本地插图 +【文件名】占位，用户手动发布 X Article，助手不操作 X |
 | inm-post-to-blog | 自研（基于 viblog Publish API） | Markdown → frontmatter 补全确认 → Publish API validate/post → D1 和页面验证 |

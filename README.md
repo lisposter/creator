@@ -30,6 +30,7 @@ creator/
 | `inm-writing` | 一挪迈中文写作：风格、结构、事实核查、ETF 开箱、表格转图规则 |
 | `inm-review` | AI 审稿：语言校对、事实核查、frontmatter、后续图片/封面建议 |
 | `inm-cover-image` | 一挪迈封面图生成：5:2 横图、ETF 开箱、金融教程等视觉 preset |
+| `inm-watermark-image` | 原图叠加 3×3 防盗水印，保持内容与尺寸，输出 PNG |
 | `innomad-image-upload` | 本地图片上传 PicList / 图床，并替换 Markdown 路径 |
 | `inm-distribute` | 多平台分发：Blog、X、小红书、公众号 |
 | `inm-post-to-x` | Markdown 转 X Article 富文本并复制到剪贴板 |
@@ -79,8 +80,9 @@ ETF 开箱文章使用 `inm-writing/references/article-types/etf-unboxing.md`，
 1. 使用 inm-cover-image 读取全局视觉规则
 2. 按文章类型加载对应 preset
 3. 生成 5:2 横向封面，预留安全区，避免文字贴边、重叠、截断
-4. 表格图按 inm-writing 的 table image 规则生成
-5. 使用 innomad-image-upload 上传并替换为 CDN 链接
+4. 表格图按 inm-writing 的 table image 规则生成，保留无水印原图
+5. 需要防盗水印时使用 inm-watermark-image：3×3、22°、#707070、默认 11% 透明度；只叠加水印，密集区域减淡，另存 PNG
+6. 使用 innomad-image-upload 上传并替换为 CDN 链接；X 交付本地图片供手动插入
 ```
 
 ### 分发
@@ -109,7 +111,7 @@ ETF 开箱文章使用 `inm-writing/references/article-types/etf-unboxing.md`，
 
 - 品牌名：Innomad 一挪迈
 - X：`@innomad_io`
-- 水印：`Innomad 一挪迈（X: @innomad_io）`
+- 防盗水印：`Innomad一挪迈 /  innomad.com`（斜线后两个空格）
 - 投资类文章保留 DYOR 免责声明
 - 文末常用「一挪迈的思考」或「一挪迈的总结」
 - 专业术语保留英文，首次出现时给中文解释

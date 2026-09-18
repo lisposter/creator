@@ -4,15 +4,15 @@ Use when converting Markdown tables to images for X / WeChat / blog visual polis
 
 ## Rules
 
-- Prefer HTML + CSS rendering to image, then convert to WebP.
+- Prefer HTML + CSS rendering to an unwatermarked image. Use WebP for ordinary table images; watermarked deliverables must stay PNG.
 - Use fixed column widths.
 - No rounded corners.
 - No nested cards.
 - Add enough outer margin.
-- Add title, date/source note, and watermark.
+- Add title and date/source note, and save an unwatermarked original. Add the watermark afterward using `inm-watermark-image`; never bake an old watermark into the source or watermark a previously watermarked image.
 - Keep typography large enough for mobile reading.
 - Use versioned filenames to avoid CDN cache:
-  - `{slug}-{table-name}-vYYYYMMDD.webp`
+  - `{slug}-{table-name}-vYYYYMMDD.webp` (unwatermarked) or `{slug}-{table-name}-vYYYYMMDD-watermarked.png` (watermarked)
   - If replacing same-day after visible cache issue, add suffix such as `-v2`, `-foto`, or another meaningful version.
 
 ## Visual Style
@@ -33,7 +33,7 @@ After generation, open the image and check:
 - no column collision;
 - no unreadably small text;
 - no unexpected rounded corners;
-- watermark visible but not dominant.
+- watermark visible but not dominant; titles, numbers, table data, and labels remain readable. Use protection boxes and rerun from the unwatermarked original when necessary.
 
 If any issue appears, regenerate before upload.
 

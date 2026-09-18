@@ -18,7 +18,8 @@ Generate 5:2 raster cover images for Innomad 一挪迈 articles. This skill hand
 5. Produce a compact cover proposal unless the user explicitly asks to generate directly.
 6. Generate one 5:2 raster cover.
 7. Visually verify text, layout, theme, and cropping.
-8. If requested, upload with `innomad-image-upload` and update `cover` / `cover_image` in frontmatter.
+8. If a watermark is requested, keep an unwatermarked original and use `inm-watermark-image` to overlay it locally. Recheck title readability and keep the watermarked output as PNG.
+9. If requested, upload with `innomad-image-upload` and update `cover` / `cover_image` in frontmatter.
 
 ## Proposal Format
 
