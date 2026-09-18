@@ -5,7 +5,7 @@ description: 多平台内容分发：将审稿完成的文章转换为 Blog、X�
 
 # 多平台分发 (Content Distribution)
 
-将 `30-Outputs/posts/` 中审稿完成的文章转换为各平台适配版本，包含平台特定的风格优化。
+将用户已确认的审稿文章转换为各平台适配版本，保留事实、机制和判断。源稿只读，生成文件保存在 `posts/{slug}/platforms/`。X 只准备富文本、插图和占位，页面操作由用户完成。
 
 ## 使用方法
 
@@ -32,7 +32,7 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel)
 - [ ] Step 2: 选择目标平台
 - [ ] Step 3: 下载远程配图副本
 - [ ] Step 4: 按平台生成内容
-- [ ] Step 5: 更新 frontmatter platforms 数组
+- [ ] Step 5: 核对并交付平台版本和图片
 ```
 
 ---
@@ -41,7 +41,7 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel)
 
 ### 搜索位置
 
-在 `${PROJECT_ROOT}/data/obsidian/30-Outputs/posts/` 中搜索：
+优先使用用户指定的已确认稿件，包括 `10-Drafts/文章名_reviewed.md` 或 `posts/{slug}/article.md`。未指定时先查找 `10-Drafts/` 中已确认的 reviewed 稿；也可只读搜索已有归档：
 
 ```bash
 find "${PROJECT_ROOT}/data/obsidian/30-Outputs/posts/" -maxdepth 1 -name "*.md" 2>/dev/null | sort -r | head -20
@@ -55,7 +55,8 @@ find "${PROJECT_ROOT}/data/obsidian/30-Outputs/posts/" -maxdepth 1 -name "*.md" 
 
 源文章必须满足：
 - 包含完整 frontmatter（title, slug, category, tags, status, platforms）
-- `status` 为 `reviewed` 或 `ready`（`draft` 状态提示先运行 `/inm-review`）
+- `status` 为 `reviewed` 或 `ready`，或当前会话中用户已明确确认该版本。尚未确认的审稿修改不能通过分发提前生成完整修订稿；先按 `/inm-review` 展示建议并等待确认。
+- `30-Outputs/` 仅作为只读来源，不回填 frontmatter、不替换链接、不移动文件。
 
 从 frontmatter 提取 `slug`，确保工作目录存在：
 
@@ -88,18 +89,14 @@ mkdir -p "${PROJECT_ROOT}/posts/${SLUG}/imgs"
 ```
 请选择要生成的平台（可多选，用空格或逗号分隔）：
 1. Blog（上传配图 + 回填 cover_image）
-2. X（单条长文，A/B/C 三个方向）
+2. X（X Article 文案与插图；发布准备含富文本和图片占位）
 3. 小红书（口语化 + 配图）
 4. 公众号（标题优化 + 段落适配）
 ```
 
-### 跳过已生成的平台
+### 已有平台版本
 
-检查 frontmatter `platforms` 数组，如果目标平台已在列表中，提示用户：
-
-```
-X 版本已生成（platforms 中包含 "x"）。是否重新生成？
-```
+通过 `posts/{slug}/platforms/` 中的文件判断是否已有版本，保留用户手工编辑。用户明确要求更新时直接更新对应工作副本，不把源稿 `platforms` 字段当作素材已生成或已经发布的凭据。
 
 ---
 
@@ -134,15 +131,17 @@ X 和公众号版本的风格优化依据此文件（仅 distribute 阶段使用
 ${SKILL_DIR}/references/writing-style-guide.md
 ```
 
-读取该文件获取写作风格指南，应用到 X 和公众号版本的开头和结尾优化。
+读取该文件及其引用的全局风格指南。需要改写时保留事实、机制和判断，删除不能帮助理解的聪明话；只要求格式转换或发布准备时保留已确认的文案。
 
 ---
 
 ### 4A. Blog
 
-**风格改写：无**（主文章即 Blog 正文）
+**风格改写：无**（使用主文章正文，在工作副本中处理链接和字段）
 
 **操作：**
+
+先生成 `posts/{slug}/platforms/blog.md` 工作副本，再执行以下操作。
 
 1. 检查 `posts/{slug}/imgs/` 是否有本地配图：
 
@@ -153,48 +152,29 @@ ls "${PROJECT_ROOT}/posts/${SLUG}/imgs/"*.png 2>/dev/null | wc -l
 2. 如有本地配图，调用 `innomad-image-upload` skill 上传所有图片：
    - 上传 `posts/{slug}/imgs/` 下所有图片
    - 上传 `posts/{slug}/{slug}_cover.png`（如存在）
-   - 替换源文章中本地路径为 CDN URL
+   - 只替换 Blog 工作副本中的本地路径为 CDN URL
 
-3. 回填 `cover_image` frontmatter 字段（如封面已上传）：
+3. 在 Blog 工作副本中回填 `cover_image` frontmatter 字段（如封面已上传）：
 
 ```yaml
 cover_image: "https://imgs.innomad.io/blog/{slug}_cover.png"
 ```
 
-4. 将 `blog` 追加到 frontmatter `platforms` 数组。
-
-**输出：直接修改源文章**（`30-Outputs/posts/` 中的文件），无额外输出文件。
+**输出：** `${PROJECT_ROOT}/posts/${SLUG}/platforms/blog.md`。源文章保持只读。
 
 ---
 
 ### 4B. X
 
-**风格改写：**
-- 读取 `writing-style-guide.md`
-- 优化开头：极快切入，1-2 句 Hook
-- 优化结尾：金句收束 + 留白
-- 参照 `inm-x-optimizer` 原则：Hook + 核心观点 + 金句
-- 单条长文格式（X Article），不是线程
-- 不在文末追加原文链接、`[BLOG_URL]` 占位符或其他回链
+- 使用 X Article 单篇长文格式，不拆成线程。
+- 默认保留已确认正文，只做必要格式适配；用户要求优化时，依据风格指南调整，不强制 A/B/C 选择。
+- 保留事实、机制和判断，不追加程序员视角的技术概念、金句、原文链接或 `[BLOG_URL]` 回链占位。
+- 表格按信息量转为本地图表或列表；代码块如为理解主题所必需，转为引用或纯文本。
+- `x.md` 中保留 Markdown 图片语法，路径应能从该文件位置正确解析；转富文本时替换为 `【文件名】` 占位。
 
-**提供 A/B/C 三个方向：**
+**输出：** `${PROJECT_ROOT}/posts/${SLUG}/platforms/x.md` 及所需本地插图。
 
-| 方向 | 风格 |
-|------|------|
-| A | 观点驱动：直接抛出最强论点 |
-| B | 故事驱动：从个人经历/场景切入 |
-| C | 数据驱动：用数据或对比开场 |
-
-使用 AskUserQuestion 让用户选择方向。
-
-**注意：**
-- X 不支持 Markdown 表格，表格内容转为列表格式
-- X 不支持代码块，代码内容转为引用或纯文本
-- 图片保留 Markdown 语法（X Article 支持图片）
-
-**输出：** `${PROJECT_ROOT}/posts/${SLUG}/platforms/x.md`
-
-将 `x` 追加到 frontmatter `platforms` 数组。
+用户要求「发布到 X」或准备发布素材时，继续调用 `inm-post-to-x`，完成富文本转换、剪贴板复制和图片占位清单后交付；不打开或操作 X，不代粘贴、插图、保存草稿或发布。仅要求「生成 X 版本」时，交付 `x.md` 和配图即可。
 
 ---
 
@@ -216,8 +196,6 @@ cover_image: "https://imgs.innomad.io/blog/{slug}_cover.png"
 - `${PROJECT_ROOT}/posts/${SLUG}/platforms/xiaohongshu.md`
 - 配图保存到 `${PROJECT_ROOT}/posts/${SLUG}/imgs/xhs_*.png`
 
-将 `xiaohongshu` 追加到 frontmatter `platforms` 数组。
-
 ---
 
 ### 4D. 公众号
@@ -225,7 +203,7 @@ cover_image: "https://imgs.innomad.io/blog/{slug}_cover.png"
 **风格改写：**
 - 读取 `writing-style-guide.md`
 - 优化开头：极快切入（同 X 方向但更正式）
-- 优化结尾：金句收束 + 留白
+- 优化结尾：简短说明有依据的判断、取舍和适用条件，不强凑金句
 - 标题优化：适配公众号标题风格（更吸引点击但不标题党）
 - 段落适配：每段控制在合理长度，适配手机阅读
 - 移除代码块（公众号排版不友好）
@@ -233,44 +211,34 @@ cover_image: "https://imgs.innomad.io/blog/{slug}_cover.png"
 
 **输出：** `${PROJECT_ROOT}/posts/${SLUG}/platforms/wechat.md`
 
-将 `wechat` 追加到 frontmatter `platforms` 数组。
-
 ---
 
-## Step 5: 更新 Frontmatter
+## Step 5: 核对与交付
 
-每个平台生成完成后，立即将平台名追加到源文章（`30-Outputs/posts/` 中的文件）的 `platforms` 数组：
+核对平台版本保留了源稿的事实、机制、判断和必要限定，插图文件可用且位置正确。X 富文本还需按 `inm-post-to-x` 核对占位清单。
 
-```yaml
-platforms:
-  - blog
-  - x
-```
-
-**实现方式：** 使用 Read 读取文件 → 解析 YAML frontmatter → 追加平台 → Edit 回写。
-
-**去重：** 追加前检查是否已存在，避免重复。
+素材生成不代表已发布，不据此修改源稿 `platforms` 或发布状态，也不回写 `30-Outputs/`。完成信息直接在对话中给出，不另建报告文件。
 
 ---
 
 ## 完成报告
 
-所有选定平台生成完成后，输出报告：
+只列出实际完成的交付项；X 若只生成 Markdown，就不声称富文本和剪贴板已就绪。示例：
 
 ```
 分发完成！
 
-源文章：data/obsidian/30-Outputs/posts/YYYY-MM-DD-{slug}.md
+源文章：用户指定的已确认稿件（只读）
 已生成平台：
   ✅ 远程配图副本 — posts/{slug}/imgs/originals/
-  ✅ Blog — 配图已上传，cover_image 已回填
-  ✅ X — posts/{slug}/platforms/x.md（方向 B）
+  ✅ Blog — posts/{slug}/platforms/blog.md，工作副本中已回填图片链接
+  ✅ X — 富文本 HTML、剪贴板、本地插图和【文件名】对应清单
   ✅ 小红书 — posts/{slug}/platforms/xiaohongshu.md + 配图
   ✅ 公众号 — posts/{slug}/platforms/wechat.md
 
 下一步：
   /inm-post-to-blog    → 补全 frontmatter、确认并发布到 innomad.io
-  /inm-post-to-x       → 复制到剪贴板，手动发布到 X
+  X                   → 用户自行粘贴富文本、插入对应图片并发布
   /baoyu-post-to-wechat → 发布到公众号
   小红书手动发布配图和文案
 ```

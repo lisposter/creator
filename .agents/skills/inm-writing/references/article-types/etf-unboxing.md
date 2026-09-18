@@ -121,7 +121,7 @@ Rules:
 
 - Do not only translate the prospectus.
 - Explain the financial / technical mechanism first, then investment experience.
-- Use software / system / network analogies when natural.
+- Explain causes, assumptions, and limits directly. Do not use software / system / network analogies or address the reader as a programmer.
 - Specific examples beat abstract terms.
 
 ## Comparison Section
@@ -209,4 +209,4 @@ Use:
 ## 一挪迈的总结
 ```
 
-Close in 1-4 paragraphs. Restate the mechanism, then the tradeoff. End with a short sentence or question. Add DYOR.
+Close in 1-4 paragraphs. Restate the mechanism, then the tradeoff. Close with a supported judgment; do not force an aphorism or question. Add DYOR.

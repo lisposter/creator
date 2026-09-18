@@ -68,8 +68,9 @@ ETF 开箱文章使用 `inm-writing/references/article-types/etf-unboxing.md`，
 
 ```text
 1. 使用 inm-review 做语言校对和事实核查
-2. 输出 review report 或直接给出修改建议
-3. 只纠错和补强，不把文章改成通用 AI 文风
+2. 在对话中展示修改建议、核查结果、frontmatter 提案和局部 diff
+3. 用户确认这些修改后才生成或更新 reviewed 文件；确认前不改源稿、不保存完整修订稿
+4. 只纠错和补强，保留事实、机制和判断，不把文章改成通用 AI 文风
 ```
 
 ### 封面和配图
@@ -86,9 +87,10 @@ ETF 开箱文章使用 `inm-writing/references/article-types/etf-unboxing.md`，
 
 ```text
 1. 使用 inm-distribute 生成目标平台版本
-2. X Article 使用 inm-post-to-x 复制富文本到剪贴板
+2. X Article 使用 inm-post-to-x 准备富文本剪贴板、本地插图和【文件名】占位清单；用户自行操作 X 并发布
 3. Blog 使用 inm-post-to-blog 补全 frontmatter、确认、发布、验证
-4. 图片统一使用 CDN 链接，避免本地路径残留
+4. Blog 等需远程图片的平台使用 CDN 链接；X 保留本地图片供用户手动插入
+5. 平台文件写入 posts/{slug}/platforms/，不回写 30-Outputs 源稿或把素材准备标记为已发布
 ```
 
 ### Blog 发布
@@ -116,7 +118,7 @@ ETF 开箱文章使用 `inm-writing/references/article-types/etf-unboxing.md`，
 
 完整写作风格已经内置到 `inm-writing/references/global-style.md`，不依赖外部临时文件。
 
-一句话原则：前程序员的理性底色 + 跨学科类比 + 朋友聊天式表达 + 高信息密度 + 结尾留白。
+一句话原则：保留事实、机制和判断，用朋友聊天式的表达讲清楚；可以有程序员式的拆解思维，不带入程序员视角的技术概念，删掉不能帮助读者理解的聪明话，不强凑金句。
 
 ## 图片上传
 

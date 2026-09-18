@@ -1,11 +1,18 @@
 ---
 name: inm-review
-description: AI 审稿：语言校对 + 事实核查 + frontmatter 生成 + 配图/封面建议。只纠错，不改写风格。在 data/obsidian/10-Drafts/ 查找文章，输出 reviewed.md 和 review-report.md。当用户提到「审稿」「review」「校对」「核查」时使用。
+description: AI 审稿：语言校对 + 事实核查 + frontmatter 生成 + 配图/封面建议。只纠错，不改写风格。在 data/obsidian/10-Drafts/ 查找文章，先展示审稿建议，用户确认后才生成 reviewed.md；需要保存报告时输出 review-report.md。当用户提到「审稿」「review」「校对」「核查」时使用。
 ---
 
 # AI 审稿 (Article Review)
 
 对 Obsidian 草稿进行语言校对、事实核查和 frontmatter 生成。**核心原则：只纠错，不改写。**
+
+## 确认边界
+
+- 审稿请求授权查错、核查和提出修改；**用户确认本轮具体修改前，不创建或更新 `*_reviewed.md`，也不改源稿**。
+- 不提前把完整修订稿写到临时目录、其他文件名或其他平台版本中。确认前在对话中展示建议、局部 diff 和 frontmatter 提案。
+- 用户已在当前会话确认过的修改可以直接落盘，不重复询问；新的未确认修改继续保留为建议。只接受部分修改时，最终稿只应用已接受项。
+- 不移动、改动或删除 `data/obsidian/30-Outputs/` 中的任何文件，也不因完成审稿而删除原稿。
 
 ## 使用方法
 
@@ -29,13 +36,13 @@ PROJECT_ROOT=$(git rev-parse --show-toplevel)
 - [ ] Step 2: 语言校对（只纠错，不改写）
 - [ ] Step 3: 事实核查（Web Search）
 - [ ] Step 4: 配图建议（不生成图片）
-- [ ] Step 5: 生成 frontmatter
-- [ ] Step 6: 输出 reviewed.md + review-report.md
-- [ ] Step 7: 展示 diff + 后续图片/封面建议
-- [ ] Step 8: 用户最终确认 → 归档
+- [ ] Step 5: 拟定 frontmatter（不落盘）
+- [ ] Step 6: 展示审稿建议、局部 diff 和配图建议
+- [ ] Step 7: 用户确认具体修改
+- [ ] Step 8: 生成 reviewed.md
 ```
 
-**交互点**：Step 7（确认修改）和 Step 8（最终确认归档）。
+**交互点**：Step 7。完成可评审的修改建议后等待确认；收到确认再执行 Step 8。
 
 ---
 
@@ -99,6 +106,8 @@ find "${PROJECT_ROOT}/data/obsidian/" -name "*${ARTICLE_NAME}*" -name "*.md" 2>/
 - 用词风格和口吻
 - 增删段落或论点
 
+技术类比、强凑金句或不能帮助读者理解的聪明话，可以指出并给出删减建议；不要借审稿改写成另一种文风。保留事实、机制和有依据的判断，确认后才应用建议。
+
 ---
 
 ## Step 3: 事实核查
@@ -109,9 +118,9 @@ find "${PROJECT_ROOT}/data/obsidian/" -name "*${ARTICLE_NAME}*" -name "*.md" 2>/
 
 | 严重度 | 标记 | 说明 | 处理 |
 |--------|------|------|------|
-| 严重 | 🔴 | 数据明确错误，可能误导读者 | 在 reviewed.md 中直接修正为可发布文本 |
-| 中等 | 🟡 | 数据可能过时或来源不明确 | 谨慎补充数据日期、来源或限定语，使正文可直接使用 |
-| 轻微 | 🟢 | 表述略有偏差但不影响理解 | 仅在报告中记录 |
+| 严重 | 🔴 | 数据明确错误，可能误导读者 | 提出可发布的修正文本及来源，确认后写入 reviewed.md |
+| 中等 | 🟡 | 数据可能过时或来源不明确 | 提议补充日期、来源或限定语，确认后写入正文 |
+| 轻微 | 🟢 | 表述略有偏差但不影响理解 | 仅在审稿建议中记录 |
 
 ### 核查要点
 
@@ -121,11 +130,11 @@ find "${PROJECT_ROOT}/data/obsidian/" -name "*${ARTICLE_NAME}*" -name "*.md" 2>/
 - 引用/出处：引文是否存在、是否被正确归属
 - 统计数据：百分比、数量级是否合理
 
-### Reviewed 正文要求
+### 确认后生成的 Reviewed 正文要求
 
 - `*_reviewed.md` 必须是可直接发布/分发的干净稿件。
 - 不要在正文里插入批注、说明标签或审稿痕迹，例如「事实核查补充」「待确认」「需核查」、脚注式审稿说明、`⚠️` 标记。
-- 事实核查发现需要补充的信息时，直接自然地并入原句或相邻段落；说明修改理由和来源只写在 `*_review-report.md`。
+- 用户接受的事实补充自然地并入原句或相邻段落；审稿修改理由和核查记录放在对话中的审稿建议或用户要求的 `*_review-report.md` 中。正文保留影响理解和判断的来源、日期与必要限定。
 
 ---
 
@@ -141,9 +150,9 @@ find "${PROJECT_ROOT}/data/obsidian/" -name "*${ARTICLE_NAME}*" -name "*.md" 2>/
 
 ---
 
-## Step 5: 生成 Frontmatter
+## Step 5: 拟定 Frontmatter
 
-根据文章内容自动生成完整 frontmatter：
+根据文章内容拟定完整 frontmatter，在 Step 6 中展示；确认前不写入文件。保留原有准确字段，避免无关改动：
 
 ```yaml
 ---
@@ -158,8 +167,8 @@ featured: false
 password: ""
 tiers: []
 summary: "2-3 句话的摘要，符合一挪迈文风"
-cover_image: ""  # 留空，待 /inm-distribute 上传后回填
-status: draft
+cover_image: ""  # 无封面时留空；后续在分发工作副本中填入
+status: reviewed  # 仅在用户确认、生成 reviewed 文件时生效
 platforms: []
 ---
 ```
@@ -184,89 +193,33 @@ platforms: []
 
 ---
 
-## Step 6: 输出文件
+## Step 6: 展示审稿建议
 
-在 `${PROJECT_ROOT}/data/obsidian/10-Drafts/` 生成两个文件：
+先在对话中给出以下内容，不需要生成 reviewed 文件才能展示差异：
 
-### 6.1 `文章名_reviewed.md`
+1. **语言修正**：位置、原文、建议修正、理由。
+2. **事实核查**：待核查内容、核查结论、严重度、来源链接和数据日期；无法核实的内容明确列出，不编造结论。
+3. **局部 diff**：用 Markdown diff 展示有变动的段落，包含拟议的 frontmatter 改动。
+4. **配图/封面建议**：位置、类型、展示内容和建议工具；此阶段不生成图片。
 
-纠错后的完整版本，包含：
-- 完整 frontmatter（Step 5 生成）
-- 纠错后的正文（不包含审稿批注、说明标签或核查标记）
-- 正文内容顺序和结构与原文完全一致
-
-### 6.2 `文章名_review-report.md`
-
-审稿报告，包含三个表格：
-
-**语言修正表：**
-
-| # | 位置 | 原文 | 修正 | 类型 |
-|---|------|------|------|------|
-| 1 | 第3段 | 错别字原文 | 修正后文本 | 错别字/语病/标点 |
-
-**事实核查表：**
-
-| # | 内容 | 核查结果 | 严重度 | 来源 |
-|---|------|----------|--------|------|
-| 1 | "SPY 年化 10%" | 近 10 年 CAGR 约 12.5% | 🟡 | Yahoo Finance |
-
-**配图/封面建议表：**
-
-| # | 位置 | 类型 | 说明 | 风格 |
-|---|------|------|------|------|
-| 1 | "ETF 对比"段后 | 数据图表 | JEPI vs JEPQ 收益对比 | 表格图片流程 |
+默认在对话中展示；用户要求保存报告时，可在 `10-Drafts/` 生成 `文章名_review-report.md`。报告记录建议和局部 diff，不作为完整修订稿的替代文件。
 
 ---
 
-## Step 7: 展示 Diff + 后续图片/封面建议
+## Step 7: 用户确认具体修改
 
-### 7.1 展示修改对比
-
-用 Markdown diff 格式展示原文与 reviewed 版本的差异，仅展示有变动的段落。
-
-### 7.2 后续建议
-
-根据 review-report 的建议，提示用户后续可使用：
-
-- `inm-writing` 的 finance table image rules：把表格做成图片并上传 PicList。
-- `inm-cover-image`：生成或更新封面图。
-- `innomad-image-upload`：上传本地图片并替换 Markdown 链接。
+请用户确认上一步展示的修改范围。未收到确认时停在建议阶段；用户继续提意见时更新建议，不生成 reviewed 文件。收到对已展示修改的确认后，直接执行 Step 8。
 
 ---
 
-## Step 8: 用户确认 → 归档
+## Step 8: 确认后生成 Reviewed
 
-用户确认后执行：
+在 `${PROJECT_ROOT}/data/obsidian/10-Drafts/文章名_reviewed.md` 写入用户已接受的修改：
 
-### 8.1 移动 reviewed 文件到 30-Outputs
+- 包含确认后的 frontmatter，`status: reviewed`。
+- 正文为干净稿件，不包含审稿批注或核查标记。
+- 保留原文的内容顺序、结构和口吻，只应用已确认修改。
+- 若源文在审稿期间被用户编辑，保留新编辑，只应用仍匹配且已确认的改动；冲突部分重新展示确认。
+- 保留原稿和已有报告，不自动归档、删除文件或创建无关工作目录。
 
-```bash
-DATE=$(date +%Y-%m-%d)
-SLUG="article-slug"  # 从 frontmatter
-mv "${PROJECT_ROOT}/data/obsidian/10-Drafts/文章名_reviewed.md" \
-   "${PROJECT_ROOT}/data/obsidian/30-Outputs/posts/${DATE}-${SLUG}.md"
-```
-
-### 8.2 删除临时文件
-
-```bash
-rm "${PROJECT_ROOT}/data/obsidian/10-Drafts/文章名.md"
-rm "${PROJECT_ROOT}/data/obsidian/10-Drafts/文章名_review-report.md"
-```
-
-删除前确认文件存在，不存在则跳过（不报错）。
-
-### 8.3 确保工作目录存在
-
-```bash
-mkdir -p "${PROJECT_ROOT}/posts/${SLUG}/imgs"
-mkdir -p "${PROJECT_ROOT}/posts/${SLUG}/platforms"
-```
-
-### 8.4 完成报告
-
-输出：
-- 归档路径：`data/obsidian/30-Outputs/posts/YYYY-MM-DD-{slug}.md`
-- 工作目录：`posts/{slug}/`
-- 下一步提示：`/inm-distribute` 生成多平台版本
+完成后给出 reviewed 文件路径和已接受的修改摘要。后续分发可直接使用这份已确认的 reviewed 稿；不需要先移动到 `30-Outputs/`。
